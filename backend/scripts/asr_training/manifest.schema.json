@@ -1,0 +1,88 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://learn4.local/schemas/speaking-asr-manifest-v1.json",
+  "title": "Speaking ASR sample manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "sample_id", "speaker_id", "session_id", "split", "part", "question_id",
+    "audio_path", "reference_verbatim", "human_unclear_spans",
+    "annotation_version", "consent_id", "retention_until", "metadata"
+  ],
+  "properties": {
+    "sample_id": {"type": "string", "minLength": 1},
+    "speaker_id": {"type": "string", "minLength": 1},
+    "session_id": {"type": "string", "minLength": 1},
+    "split": {"enum": ["train", "validation", "test"]},
+    "part": {"enum": [1, 2, 3]},
+    "question_id": {"type": "string", "minLength": 1},
+    "audio_path": {"type": "string", "minLength": 1},
+    "reference_verbatim": {"type": "string"},
+    "reference_corrected_for_coaching": {"type": ["string", "null"]},
+    "human_unclear_spans": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["start", "end", "decision"],
+        "properties": {
+          "start": {"type": "number", "minimum": 0},
+          "end": {"type": "number", "exclusiveMinimum": 0},
+          "decision": {"type": "string", "minLength": 1}
+        }
+      }
+    },
+    "annotation_version": {"type": "string", "minLength": 1},
+    "consent_id": {"type": "string", "minLength": 1},
+    "retention_until": {"type": "string", "format": "date"},
+    "preservation_tags": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "grammar_errors": {"$ref": "#/$defs/spans"},
+        "fillers": {"$ref": "#/$defs/spans"},
+        "repetitions": {"$ref": "#/$defs/spans"},
+        "false_starts": {"$ref": "#/$defs/spans"}
+      }
+    },
+    "metadata": {
+      "type": "object",
+      "required": ["device", "region", "noise"],
+      "properties": {
+        "device": {"type": "string", "minLength": 1},
+        "region": {"type": "string", "minLength": 1},
+        "noise": {"type": "string", "minLength": 1},
+        "accent": {"type": ["string", "null"]},
+        "band": {"type": ["number", "null"], "minimum": 0, "maximum": 9},
+        "topic_id": {"type": ["string", "null"]},
+        "question_family": {"type": ["string", "null"]}
+      },
+      "additionalProperties": true
+    },
+    "human_ratings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["examiner_id", "fluency", "vocab", "grammar", "pronun"],
+        "properties": {
+          "examiner_id": {"type": "string", "minLength": 1},
+          "fluency": {"type": ["number", "null"], "minimum": 0, "maximum": 9},
+          "vocab": {"type": ["number", "null"], "minimum": 0, "maximum": 9},
+          "grammar": {"type": ["number", "null"], "minimum": 0, "maximum": 9},
+          "pronun": {"type": ["number", "null"], "minimum": 0, "maximum": 9},
+          "overall": {"type": ["number", "null"], "minimum": 0, "maximum": 9},
+          "rubric_version": {"type": "string"},
+          "prediction_hidden": {"const": true}
+        },
+        "additionalProperties": false
+      }
+    },
+    "adjudication": {"type": ["object", "null"]}
+  },
+  "$defs": {
+    "spans": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1}
+    }
+  }
+}

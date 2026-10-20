@@ -1,0 +1,44 @@
+{
+  "silence_2s.wav": {
+    "sample_rate": 16000,
+    "channels": 1,
+    "seconds": 2.0,
+    "expectation": "pure silence; expect cant_hear, no hallucinated words"
+  },
+  "noise_only_2s.wav": {
+    "sample_rate": 16000,
+    "channels": 1,
+    "seconds": 2.0,
+    "expectation": "white noise only; expect cant_hear or high hallucination risk"
+  },
+  "tone_440_2s.wav": {
+    "sample_rate": 16000,
+    "channels": 1,
+    "seconds": 2.0,
+    "expectation": "steady tone; non-speech energy without linguistic content"
+  },
+  "tone_with_gap_3s.wav": {
+    "sample_rate": 16000,
+    "channels": 1,
+    "seconds": 3.0,
+    "expectation": "tone-silence-tone; exercises VAD speech/silence segmentation"
+  },
+  "truncated_tone_0_3s.wav": {
+    "sample_rate": 16000,
+    "channels": 1,
+    "seconds": 0.3,
+    "expectation": "very short clip; exercises truncated-audio handling"
+  },
+  "repeated_beeps_3s.wav": {
+    "sample_rate": 16000,
+    "channels": 1,
+    "seconds": 3.0,
+    "expectation": "repeated identical bursts; repetition/hallucination guard"
+  },
+  "speech_like_mixed_4s.wav": {
+    "sample_rate": 16000,
+    "channels": 1,
+    "seconds": 4.0,
+    "expectation": "mixed energy/noise; mid-quality sample proxy"
+  }
+}

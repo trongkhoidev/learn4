@@ -1,0 +1,59 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.venv/
+venv/
+ENV/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+*.sqlite*
+*.db
+backend/storage/
+storage/
+backend/backups/
+backups/
+
+# Node & Frontend
+node_modules/
+dist/
+test-results/
+playwright-report/
+coverage/
+.next/
+
+# Submodules / Reference clones
+learn4/
+luyennoi-clone/
+
+# Test artifacts & temporary files
+*.log
+*.webm
+*.m4a
+*.wav
+*.mp3
+curl_out.txt
+
+# Environment variables & secrets (CRITICAL)
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# OS & Editor
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+.idea/
+.vscode/
+
+# Vercel
+.vercel

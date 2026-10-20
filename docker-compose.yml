@@ -1,0 +1,47 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: lexi
+      POSTGRES_PASSWORD: lexi
+      POSTGRES_DB: lexilearn
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lexi"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build: ./backend
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+psycopg://lexi:lexi@postgres:5432/lexilearn
+      STORAGE_DIR: /app/storage
+      HF_HOME: /models/huggingface
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - storage:/app/storage
+      - whisper_models:/models
+    healthcheck:
+      test: ["CMD", "python", "-c", "import json,urllib.request,sys; d=json.load(urllib.request.urlopen('http://127.0.0.1:8000/ready')); sys.exit(0 if d['status']=='ready' else 1)"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 120s
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "80:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+
+volumes:
+  pgdata:
+  storage:
+  whisper_models:
