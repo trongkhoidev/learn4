@@ -20,7 +20,8 @@ export default function App() {
   return (
     <Suspense fallback={<div className="p-10 text-center text-gray-500">Đang tải...</div>}>
       <Routes>
-        <Route path="/" element={<Navigate to="/teacher" replace />} />
+        <Route path="/" element={<Navigate to="/speaking" replace />} />
+        <Route path="/student" element={<Navigate to="/speaking" replace />} />
         <Route element={<PublicLayout />}>
           <Route path="/join" element={<Join />} />
         </Route>
