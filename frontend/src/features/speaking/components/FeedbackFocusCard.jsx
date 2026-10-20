@@ -1,7 +1,35 @@
 import React from 'react';
 import { CheckCircle2, AlertTriangle, Lightbulb } from 'lucide-react';
 
-export default function FeedbackFocusCard({ comment }) {
+export default function FeedbackFocusCard({ comment, review }) {
+  if (review) {
+    const labels = {
+      strength: 'Điểm mạnh có dẫn chứng',
+      limitation: 'Điểm còn hạn chế',
+      error: 'Lỗi cần sửa',
+      optional_improvement: 'Gợi ý nâng cách diễn đạt',
+    };
+    return (
+      <div className="mt-3 space-y-4 text-sm leading-6 text-slate-700">
+        <div>
+          <p className="font-bold text-slate-950">Vì sao có band này?</p>
+          <p className="mt-1 whitespace-pre-line">{review.band_reason_vi}</p>
+        </div>
+        {review.observations.map((observation, index) => (
+          <div key={index} className={`rounded-xl border p-3 ${observation.kind === 'strength' ? 'border-emerald-100 bg-emerald-50' : observation.kind === 'error' ? 'border-rose-100 bg-rose-50' : 'border-blue-100 bg-blue-50'}`}>
+            <p className="text-xs font-bold">{labels[observation.kind] || 'Nhận xét'}</p>
+            <blockquote className="my-2 border-l-2 border-slate-300 pl-3 font-medium text-slate-950">“{observation.quote}”</blockquote>
+            <p>{observation.explanation_vi}</p>
+            {observation.suggestion && <p className="mt-2 font-medium text-blue-900">{observation.kind === 'error' ? 'Sửa thành: ' : 'Có thể nói: '}{observation.suggestion}</p>}
+          </div>
+        ))}
+        <div className="rounded-xl border border-amber-100 bg-amber-50 p-3">
+          <p className="font-bold text-amber-950">Để tiến tới band cao hơn</p>
+          <p className="mt-1">{review.next_band_gap_vi}</p>
+        </div>
+      </div>
+    );
+  }
   if (!comment) return null;
 
   let pros = '';

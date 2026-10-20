@@ -84,3 +84,21 @@ def test_acoustic_proxy_cannot_enter_rater_payload():
     assert "fluency_raw" not in payload["verified_audio_features"]
     assert "asr_signal" not in payload["verified_audio_features"]
     assert payload["verified_audio_features"]["words_per_minute"] == 130
+
+
+def test_mock_payload_marks_uncertainty_and_candidates_within_each_turn():
+    payload = llm_service._payload(
+        'lexical_resource', question='Session', part=None, scope='mock_session',
+        words=[], uncertain_spans=[{'word_id': 't1_w2'}], turns=[{
+            'part': 1, 'words': [
+                {'id': 't1_w1', 'text': 'enjoy'}, {'id': 't1_w2', 'text': 'unclear'},
+                {'id': 't1_w3', 'text': 'reading'},
+            ],
+        }],
+    )
+    turn = payload['turns'][0]
+    assert turn['words'][1]['asr_uncertain'] is True
+    assert turn['evidence_candidates'] == [
+        {'quote': 'enjoy', 'word_ids': ['t1_w1']},
+        {'quote': 'reading', 'word_ids': ['t1_w3']},
+    ]

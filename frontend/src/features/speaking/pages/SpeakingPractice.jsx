@@ -327,7 +327,7 @@ export default function SpeakingPractice() {
               return (
                 <article key={key} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
                   <h3 className={`text-[10px] font-bold uppercase tracking-[.15em] ${color}`}>{label}</h3>
-                  <FeedbackFocusCard comment={criterion?.feedback || 'Chưa có phản hồi đủ bằng chứng cho tiêu chí này.'} />
+                  <FeedbackFocusCard review={criterion?.examiner_review} comment={criterion?.feedback || 'Chưa có phản hồi đủ bằng chứng cho tiêu chí này.'} />
                   {criterion?.next_action_vi && (
                     <div className="mt-4 rounded-xl bg-blue-50 p-3 text-sm leading-6 text-blue-950">
                       <p className="font-bold">Bước luyện tiếp theo</p>

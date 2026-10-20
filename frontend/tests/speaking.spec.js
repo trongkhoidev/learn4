@@ -131,6 +131,36 @@ test.describe('Speaking Module', () => {
     await expect(page.getByRole('heading', { name: 'Lịch sử & Tiến độ' })).toBeVisible();
   });
 
+  test('Completed three-Part mock displays persisted examiner feedback', async ({ page }) => {
+    await page.clock.install();
+    await enterSpeaking(page);
+    const topics = await (await page.request.get('/api/v1/speaking/topics')).json();
+    const topic = topics[0];
+    const questions = [1, 2, 3].map(part => topic.questions.find(question => question.part === part));
+    expect(questions.every(Boolean)).toBeTruthy();
+    await page.route('**/api/v1/speaking/questions?*', route => route.fulfill({ json: questions }));
+    await page.getByRole('link', { name: 'Thi thử', exact: true }).click();
+
+    for (const question of questions) {
+      await expect(page.getByRole('heading', { name: question.question_text, exact: true })).toBeVisible();
+      if (question.part === 2) {
+        await page.getByRole('button', { name: 'Bắt đầu 1 phút chuẩn bị' }).click();
+        await page.clock.fastForward(60000);
+      }
+      await page.getByRole('button', { name: 'Bắt đầu ghi âm' }).click();
+      await page.waitForTimeout(1200);
+      await page.getByRole('button', { name: 'Dừng ghi âm' }).click();
+      await page.getByRole('button', { name: 'Nộp bản ghi âm' }).click();
+    }
+
+    await expect(page.getByRole('heading', { name: 'Hoàn Thành Mock Test' })).toBeVisible({ timeout: 15000 });
+    const feedback = page.getByRole('region', { name: 'Phản hồi theo tiêu chí' });
+    await expect(feedback.getByRole('heading')).toHaveCount(4);
+    await expect(feedback.getByText('Vì sao có band này?', { exact: true })).toHaveCount(3);
+    await expect(feedback.locator('blockquote')).toHaveCount(3);
+    await expect(page.getByRole('heading', { name: 'Không có lỗi được xác nhận' })).toBeVisible();
+  });
+
   test('Fake microphone records, submits, shows a partial result, and appears in history', async ({ page }) => {
     await page.addInitScript(() => {
       const speechSynthesis = window.speechSynthesis;
@@ -171,10 +201,16 @@ test.describe('Speaking Module', () => {
     const storedAudio = await page.request.get(submittedSession.audio_url);
     expect(storedAudio.ok()).toBeTruthy();
     await expect(page.getByRole('heading', { name: 'Kết Quả Phân Tích' })).toBeVisible({ timeout: 15000 });
-    await expect(page.getByText('Chỉ tính khi đủ evidence cho cả bốn tiêu chí.')).toBeVisible();
+    const persistedResult = await (await page.request.get(`/api/v1/speaking/practice/${submittedSession.id}`)).json();
+    expect(persistedResult.result.overall).toBeNull();
+    await expect(page.getByText('Điểm ngôn ngữ tham khảo', { exact: true })).toBeVisible();
+    await expect(page.getByText('Trung bình 3 tiêu chí ngôn ngữ. Chưa phải band tổng thể vì còn thiếu đánh giá Phát âm.')).toBeVisible();
     const feedback = page.getByRole('region', { name: 'Phản hồi theo tiêu chí' });
     await expect(feedback.getByRole('heading', { name: 'Pronunciation', exact: true })).toBeVisible();
     await expect(feedback.getByText('Bước luyện tiếp theo', { exact: true })).toHaveCount(4);
+    await expect(feedback.getByText('Vì sao có band này?', { exact: true })).toHaveCount(3);
+    await expect(feedback.getByText('Để tiến tới band cao hơn', { exact: true })).toHaveCount(3);
+    await expect(feedback.locator('blockquote')).toHaveCount(3);
     await expect(page.getByRole('button', { name: 'Bắt đầu ghi âm' })).toHaveCount(0);
 
     await page.getByRole('button', { name: 'Luyện chủ đề khác' }).click();
@@ -188,6 +224,7 @@ test.describe('Speaking Module', () => {
     await page.reload();
     await expect(page.getByRole('heading', { name: 'Kết Quả Phân Tích' })).toBeVisible();
     await expect(page.getByRole('region', { name: 'Phản hồi theo tiêu chí' }).getByRole('heading')).toHaveCount(4);
+    await expect(page.getByText('Vì sao có band này?', { exact: true })).toHaveCount(3);
   });
 
   test('Failed result remains bandless and visible in history', async ({ page }) => {

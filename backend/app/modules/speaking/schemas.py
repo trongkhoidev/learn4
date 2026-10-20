@@ -1,6 +1,7 @@
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from typing import List, Optional, Dict, Any, Literal
 from datetime import datetime
+from app.modules.speaking.assessment.contracts import ExaminerReview
 
 class SpeakingQuestionBase(BaseModel):
     topic_id: Optional[str] = None
@@ -104,6 +105,7 @@ class CriterionAssessment(BaseModel):
     evidence: List[Dict[str, Any]] = Field(default_factory=list)
     coverage_by_part: Dict[str, str] = Field(default_factory=dict)
     next_action_vi: Optional[str] = None
+    examiner_review: Optional[ExaminerReview] = None
     reason: Optional[str] = None
     relevance: Optional[Literal["related", "weakly_related", "unrelated"]] = None
     features: Dict[str, Any] = Field(default_factory=dict)

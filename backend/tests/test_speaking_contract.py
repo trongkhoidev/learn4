@@ -162,3 +162,81 @@ def test_invalid_word_timestamps_are_not_exposed_for_playback():
     assert words[0]["start"] is None
     assert words[0]["end"] is None
     assert "word_timing_missing_or_out_of_audio_bounds" in reasons
+
+
+@pytest.mark.parametrize('ids,quote', [
+    (['w1', 'w3'], 'I yesterday'),
+    (['w3', 'w1'], 'yesterday I'),
+])
+def test_evidence_cannot_manufacture_a_phrase_from_disconnected_words(ids, quote):
+    words = [
+        {'id': 'w1', 'word': 'I'}, {'id': 'w2', 'word': 'went'},
+        {'id': 'w3', 'word': 'yesterday'},
+    ]
+    with pytest.raises(RaterContractError, match='contiguous'):
+        validate_rater_result({
+            'criterion': 'grammatical_range_accuracy', 'status': 'scored', 'band': 6,
+            'evidence': [{'quote': quote, 'word_ids': ids}],
+        }, 'grammatical_range_accuracy', words, [])
+
+
+def test_examiner_observation_cannot_claim_an_uncertain_error():
+    with pytest.raises(RaterContractError, match='ASR-uncertain'):
+        validate_rater_result({
+            'criterion': 'lexical_resource', 'status': 'scored', 'band': 6,
+            'evidence': [{'quote': 'enjoy', 'word_ids': ['w1']}],
+            'examiner_review': {
+                'band_reason_vi': 'Nhận xét dựa trên mẫu.',
+                'next_band_gap_vi': 'Cần dùng từ chính xác hơn.',
+                'observations': [{
+                    'kind': 'error', 'quote': 'funny', 'word_ids': ['w2'],
+                    'explanation_vi': 'Sai nghĩa trong ngữ cảnh.', 'suggestion': 'fun',
+                }],
+            },
+        }, 'lexical_resource', [
+            {'id': 'w1', 'word': 'enjoy'}, {'id': 'w2', 'word': 'funny'},
+        ], [{'word_id': 'w2'}])
+
+
+def test_current_rater_rejects_scored_generic_feedback_without_examiner_review(monkeypatch):
+    import json
+
+    response = {
+        'criterion': 'lexical_resource', 'status': 'scored', 'band': 6,
+        'feedback_vi': 'Good vocabulary.', 'next_action_vi': 'Learn more words.',
+        'evidence': [{'quote': 'enjoy', 'word_ids': ['w1']}],
+    }
+    monkeypatch.setattr(llm_service, '_complete', lambda *args, **kwargs: json.dumps(response))
+    words = [{'id': 'w1', 'word': 'enjoy', 'text': 'enjoy'}]
+    payload = llm_service._payload(
+        'lexical_resource', question='Q', part=1, scope='practice_answer',
+        words=words, uncertain_spans=[],
+    )
+    with pytest.raises(ValueError, match='require examiner_review'):
+        llm_service._request_rater(
+            'lexical_resource', payload, words=words, uncertain_spans=[], model='fake',
+        )
+
+
+def test_examiner_review_survives_assessment_response_and_aliases(monkeypatch):
+    monkeypatch.setattr(settings, 'stt_provider', 'mock')
+    monkeypatch.setattr(settings, 'llm_provider', 'mock')
+    with patch('app.modules.speaking.assessment.engine.budget.record'):
+        result = grade_speaking('dummy.webm', 'Describe a topic', 'PART 1')
+    for alias, key in [('fluency', 'fluency_coherence'), ('vocab', 'lexical_resource'),
+                       ('grammar', 'grammatical_range_accuracy')]:
+        review = result[alias]['examiner_review']
+        assert review['band_reason_vi']
+        assert review['next_band_gap_vi']
+        assert review['observations'][0]['word_ids']
+        assert result['criteria'][key]['examiner_review'] == review
+
+
+def test_evidence_cannot_join_adjacent_words_across_mock_turns():
+    with pytest.raises(RaterContractError, match='within one turn'):
+        validate_rater_result({
+            'criterion': 'lexical_resource', 'status': 'scored', 'band': 6,
+            'evidence': [{'quote': 'enjoy reading', 'word_ids': ['t1_w1', 't2_w1']}],
+        }, 'lexical_resource', [
+            {'id': 't1_w1', 'word': 'enjoy'}, {'id': 't2_w1', 'word': 'reading'},
+        ], [])

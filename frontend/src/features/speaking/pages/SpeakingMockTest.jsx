@@ -7,6 +7,8 @@ import { Link, useParams } from 'react-router-dom';
 import AudioRecorderPro from '../components/AudioRecorderPro.jsx';
 import ScoreGrid from '../components/ScoreGrid.jsx';
 import SpeakButton from '../components/SpeakButton.jsx';
+import FeedbackFocusCard from '../components/FeedbackFocusCard.jsx';
+import GrammarErrorList from '../components/GrammarErrorList.jsx';
 
 export default function SpeakingMockTest() {
   const { testId } = useParams();
@@ -47,6 +49,22 @@ export default function SpeakingMockTest() {
           <p className="mt-3 max-w-2xl text-sm leading-6 text-blue-100/75">Đánh giá gộp evidence từ cả ba Part. Tiêu chí chưa đủ bằng chứng sẽ không có band.</p>
         </div>
         <ScoreGrid scores={mockResult} />
+        <section aria-label="Phản hồi theo tiêu chí" className="grid gap-4 md:grid-cols-2">
+          {[
+            ['fluency', 'Fluency & Coherence'], ['vocab', 'Lexical Resource'],
+            ['grammar', 'Grammatical Range and Accuracy'], ['pronun', 'Pronunciation'],
+          ].map(([key, label]) => {
+            const criterion = session.result?.[key];
+            return (
+              <article key={key} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                <h3 className="text-xs font-bold text-blue-800">{label}</h3>
+                <FeedbackFocusCard review={criterion?.examiner_review} comment={criterion?.feedback || 'Chưa có phản hồi đủ bằng chứng cho tiêu chí này.'} />
+                {criterion?.next_action_vi && <div className="mt-4 rounded-xl bg-blue-50 p-3 text-sm leading-6 text-blue-950"><p className="font-bold">Bước luyện tiếp theo</p><p>{criterion.next_action_vi}</p></div>}
+              </article>
+            );
+          })}
+        </section>
+        <GrammarErrorList errors={session.result?.grammar?.errors} status={session.result?.grammar?.status} />
         <div className="flex items-start gap-3 rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3.5 text-sm leading-6 text-blue-950/80">
           <Sparkles className="mt-0.5 shrink-0 text-blue-700" size={17} />
           <p>Đây là kết quả chẩn đoán để luyện tập, không phải điểm IELTS chính thức. {session.result?.pronun?.reason || ''}</p>

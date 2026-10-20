@@ -1,25 +1,35 @@
-"""Frozen, concise paraphrase of the public IELTS Speaking descriptors."""
+"""Versioned paraphrase of the public descriptors, with diagnostic scope rules."""
 
-RUBRIC_VERSION = "ielts-speaking-public-descriptors-2026-10-v1"
+RUBRIC_VERSION = "ielts-speaking-public-descriptors-2026-10-v2"
 RUBRIC_SOURCE = "https://ielts.org/cdn/ielts-guides/ielts-speaking-band-descriptors.pdf"
 
-PUBLIC_DESCRIPTOR_CONTEXT = """Use the IELTS public Speaking descriptors, with equal criteria.
-The descriptors assess the whole performance. Bands 1-3 indicate absent or very
-limited communication, isolated/basic language, and frequent pauses or errors.
-Band 4: short, repetitive speech; basic familiar-topic vocabulary and structures;
-frequent errors and limited control of pronunciation features. Band 5: can keep
-going with repetition or slow speech; limited flexibility and paraphrase; basic
-forms are more controlled than complex ones. Band 6: can produce longer turns;
-some loss of coherence; sufficient vocabulary and generally clear meaning; a mix
-of structures with complex errors that rarely block communication; variable but
-generally understandable pronunciation. Band 7: sustained long turns, flexible
-cohesion and topic development; flexible vocabulary and paraphrase; frequent
-error-free sentences with effective simple and complex forms; a range of
-pronunciation features with intelligibility maintained. Band 8: fluent and
-coherent, broad precise vocabulary, wide flexible grammar with most sentences
-error free, and easily understood speech with only occasional pronunciation
-lapses. Band 9: consistently fluent, precise and flexible language, near-complete
-grammatical control, and effortless intelligibility with nuanced pronunciation.
-Band 0 means the test was not attended or completed. Accent alone is not a fault.
-Apply descriptors holistically; do not convert a fixed WPM, word count, keyword,
-or number of errors into a band."""
+PUBLIC_DESCRIPTOR_CONTEXT = """IELTS Speaking descriptor summary (paraphrase):
+Assess criteria separately and the performance holistically.
+Bands 1-3: isolated language, severe communication difficulties, little control.
+Band 4: interrupted, repetitive speech; basic vocabulary; restricted structures
+and frequent errors; pronunciation often requires listener effort.
+Band 5: maintains speech with repetition or slowness; limited lexical flexibility;
+basic grammar better controlled than attempted complex forms.
+Band 6: attempts extended speech despite coherence lapses; sufficient vocabulary
+and usually successful paraphrase; varied simple/complex forms with limited
+flexibility and errors seldom obscuring meaning; generally intelligible.
+Band 7: sustained turns and flexible cohesion; flexible vocabulary, some
+less-common expressions and effective paraphrase; varied structures and frequent
+accurate sentences, with some errors; pronunciation exceeds band 6 in some areas.
+Band 8: coherent development and largely content-related hesitation; broad,
+flexible vocabulary; most sentences accurate; easily understood pronunciation.
+Band 9: fully coherent, precise, flexible communication with near-total control
+and effortless intelligibility. Band 0: no completed performance.
+Accent alone is not a defect. Official ratings consider performance across Parts.
+
+DIAGNOSTIC APPLICATION:
+Use a best-fit judgement grounded in the available sample. Do not inflate bands
+from isolated impressive words or one complex clause. Do not impose automatic
+band caps from WPM, word count, sentence count, repeated topic nouns, or a grammar
+checklist. A brief Part 1 answer can be appropriate to its question. Explain
+limited opportunities to demonstrate range instead of inventing errors or
+assuming unseen ability. Part 2 needs connected development; Part 3 needs ideas
+and reasons appropriate to the question. These are context for observations,
+not a separate task-response score. Half bands reflect a supported intermediate
+performance, not fixed error deductions. Never describe this AI estimate as
+examiner-calibrated without independent human validation."""

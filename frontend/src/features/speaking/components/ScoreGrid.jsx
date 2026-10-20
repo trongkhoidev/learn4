@@ -16,14 +16,30 @@ const statusLabels = {
 };
 
 export default function ScoreGrid({ scores = {} }) {
-  const overall = scores.overall;
+  const scoredCriteria = [
+    scores.fluency?.band ?? scores.fluency?.score,
+    scores.vocabulary?.band ?? scores.vocabulary?.score,
+    scores.grammar?.band ?? scores.grammar?.score,
+  ];
+
+  const calcOverall = () => {
+    if (scores.overall != null) return Number(scores.overall);
+    if (scoredCriteria.every(value => value != null && Number.isFinite(Number(value)) && Number(value) >= 0 && Number(value) <= 9)) {
+      const avg = scoredCriteria.reduce((a, b) => a + Number(b), 0) / scoredCriteria.length;
+      return Math.round(avg * 2) / 2;
+    }
+    return null;
+  };
+
+  const overall = calcOverall();
+  const isEstimatedFromThree = scores.overall == null && overall != null;
 
   return (
     <section aria-label="Kết quả band chẩn đoán" className="grid gap-4 xl:grid-cols-[minmax(230px,.72fr)_minmax(0,1.8fr)]">
       <div className="relative isolate overflow-hidden rounded-[24px] bg-[#111b3d] p-5 text-white shadow-lg shadow-blue-950/10 sm:p-6">
         <div aria-hidden="true" className="pointer-events-none absolute -right-12 -top-12 -z-10 h-36 w-36 rounded-full border-[22px] border-white/[0.06]" />
         <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[.14em] text-blue-200">
-          <Award size={16} aria-hidden="true" /> Band tổng thể
+          <Award size={16} aria-hidden="true" /> {isEstimatedFromThree ? 'Điểm ngôn ngữ tham khảo' : 'Band tổng thể'}
         </div>
         <div className="mt-4 flex items-end gap-2">
           <span className="text-5xl font-extrabold tracking-tight sm:text-6xl">{overall == null ? '—' : Number(overall).toFixed(1)}</span>
@@ -31,7 +47,13 @@ export default function ScoreGrid({ scores = {} }) {
         </div>
         <div className="mt-4 flex items-start gap-2 border-t border-white/10 pt-4 text-xs leading-5 text-blue-100/75">
           <CircleHelp className="mt-0.5 shrink-0" size={14} aria-hidden="true" />
-          <p>{overall == null ? 'Chỉ tính khi đủ evidence cho cả bốn tiêu chí.' : 'Đây là ước lượng chẩn đoán từ bài luyện, không phải điểm IELTS chính thức.'}</p>
+          <p>
+            {overall == null
+              ? 'Chưa đủ dữ liệu để tính band tổng thể.'
+              : isEstimatedFromThree
+                ? 'Trung bình 3 tiêu chí ngôn ngữ. Chưa phải band tổng thể vì còn thiếu đánh giá Phát âm.'
+                : 'Ước lượng chẩn đoán IELTS Speaking, không thay thế chứng chỉ chính thức.'}
+          </p>
         </div>
       </div>
 

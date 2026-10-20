@@ -30,8 +30,8 @@ class Settings(BaseSettings):
     llm_provider: str = "groq" # 'groq', 'gemini', or 'mock'
     gemini_model: str = "gemini-3.5-flash-lite"
 
-    tier_exam: str = "70b,70b,8b"
-    tier_practice: str = "70b,8b,8b"
+    tier_exam: str = "70b,70b,70b"
+    tier_practice: str = "70b,70b,70b"
     tier_budget: str = "8b,8b,8b"
 
     whisper_model: str = "turbo"
@@ -51,7 +51,7 @@ class Settings(BaseSettings):
     speaking_job_max_attempts: int = 2
     speaking_job_poll_seconds: float = 0.5
     speaking_async_default: bool = False
-    scoring_version: str = "ielts-diagnostic-v2"
+    scoring_version: str = "ielts-examiner-feedback-v3"
     stt_profile_version: str = "whisper-en-v2"
     calibration_version: str = "uncalibrated"
     # Conservative review gates; these are heuristic triggers, not probabilities.

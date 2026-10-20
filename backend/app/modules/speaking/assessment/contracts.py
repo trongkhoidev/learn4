@@ -24,6 +24,20 @@ class GrammarError(BaseModel):
     error_or_improvement: Literal["error", "optional_improvement"]
 
 
+class ExaminerObservation(Evidence):
+    kind: Literal["strength", "limitation", "error", "optional_improvement"]
+    explanation_vi: str = Field(min_length=1, max_length=600)
+    suggestion: str | None = Field(default=None, max_length=300)
+
+
+class ExaminerReview(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    band_reason_vi: str = Field(min_length=1, max_length=800)
+    next_band_gap_vi: str = Field(min_length=1, max_length=600)
+    observations: list[ExaminerObservation] = Field(min_length=1, max_length=4)
+
+
 class CriterionRaterResult(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -36,6 +50,7 @@ class CriterionRaterResult(BaseModel):
     evidence: list[Evidence] = Field(default_factory=list)
     errors: list[GrammarError] = Field(default_factory=list)
     next_action_vi: str = Field(default="", max_length=500)
+    examiner_review: ExaminerReview | None = None
     relevance: Literal["related", "weakly_related", "unrelated"] | None = None
     coverage_by_part: dict[Literal["1", "2", "3"], Literal["sufficient", "limited", "missing"]] = Field(default_factory=dict)
 
@@ -71,7 +86,14 @@ def _validate_reference(quote: str, word_ids: list[str], by_id: dict, uncertain_
     missing = [word_id for word_id in word_ids if word_id not in by_id]
     if missing:
         raise RaterContractError(f"{label} references unknown word IDs: {missing}")
-    expected = " ".join(str(by_id[word_id].get("word", "")) for word_id in word_ids)
+    positions = {word_id: index for index, word_id in enumerate(by_id)}
+    indices = [positions[word_id] for word_id in word_ids]
+    if indices != list(range(indices[0], indices[0] + len(indices))):
+        raise RaterContractError(f"{label} must cite contiguous words in transcript order")
+    turn_ids = {word_id.split("_w")[0] for word_id in word_ids if re.match(r"^t\d+_w\d+$", word_id)}
+    if len(turn_ids) > 1:
+        raise RaterContractError(f"{label} must cite contiguous words within one turn")
+    expected = " ".join(str(by_id[word_id].get("word") or by_id[word_id].get("text", "")) for word_id in word_ids)
     if _normalized_quote(quote) != _normalized_quote(expected):
         raise RaterContractError(
             f"{label} quote does not match its word IDs {word_ids}; "
@@ -93,7 +115,8 @@ def validate_rater_result(payload: dict, criterion: str, words: list, uncertain_
         if span.get("word_id") is not None
     }
     violations = []
-    for label, references in (("evidence", result.evidence), ("errors", result.errors)):
+    observations = result.examiner_review.observations if result.examiner_review else []
+    for label, references in (("evidence", result.evidence), ("errors", result.errors), ("observations", observations)):
         for index, reference in enumerate(references):
             try:
                 _validate_reference(reference.quote, reference.word_ids, by_id, uncertain_ids, f"{label}[{index}]")
@@ -101,6 +124,14 @@ def validate_rater_result(payload: dict, criterion: str, words: list, uncertain_
                 violations.append(str(exc))
     if result.criterion != "grammatical_range_accuracy" and result.errors:
         violations.append("only the grammar rater may return grammar errors")
+    for observation in observations:
+        if observation.kind in {"error", "optional_improvement"} and not (observation.suggestion or "").strip():
+            violations.append("error and optional_improvement observations require a concrete suggestion")
+        if observation.kind == "error" and result.criterion == "fluency_coherence":
+            violations.append("fluency observations describe delivery or coherence limitations, not language errors")
+    for error in result.errors:
+        if _normalized_quote(error.quote) == _normalized_quote(error.correction):
+            violations.append("grammar correction must change the quoted text")
     if violations:
         raise RaterContractError("; ".join(violations))
     return result

@@ -251,6 +251,7 @@ def _criterion_from_rater(rater: dict, *, basis: str, words: list, uncertainty: 
         errors=errors,
         evidence=rater.get("evidence", []),
         next_action_vi=rater.get("next_action_vi") or None,
+        examiner_review=rater.get("examiner_review"),
         reason=rater.get("failure_reason"),
         relevance=rater.get("relevance"),
         coverage_by_part=rater.get("coverage_by_part", {}),
