@@ -7,8 +7,9 @@ export default async function handler(req) {
   const backendBase = "https://measureless-trogonoid-marisha.ngrok-free.dev";
 
   let pathname = url.pathname;
-  if (pathname.startsWith("/api/storage/")) {
-    pathname = pathname.replace("/api/storage/", "/storage/");
+  if (pathname.includes("[...path]")) {
+    const matched = req.headers.get("x-matched-path") || req.headers.get("x-invoke-path");
+    if (matched) pathname = matched;
   }
 
   const targetUrl = `${backendBase}${pathname}${url.search}`;
@@ -30,7 +31,7 @@ export default async function handler(req) {
   try {
     return await fetch(targetUrl, options);
   } catch (error) {
-    return new Response(JSON.stringify({ error: error.message }), {
+    return new Response(JSON.stringify({ error: error.message, target: targetUrl }), {
       status: 502,
       headers: { "Content-Type": "application/json" },
     });
