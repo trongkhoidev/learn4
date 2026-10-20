@@ -112,7 +112,7 @@ def _word_dict(word) -> dict:
     }
 
 
-def _decode(model, audio_path, *, beam_size=5, temperature=0.0):
+def _decode(model, audio_path, *, beam_size=5, temperature=0.0, keyterms=None):
     segments, _info = model.transcribe(
         audio_path,
         language="en",
@@ -123,6 +123,8 @@ def _decode(model, audio_path, *, beam_size=5, temperature=0.0):
         vad_filter=True,
         vad_parameters={"min_silence_duration_ms": 300},
         condition_on_previous_text=False,
+        initial_prompt="English speaking practice. Keep spoken grammar, fillers and repetitions. Vietnamese proper names may occur.",
+        **({"hotwords": ", ".join(keyterms)} if keyterms else {}),
         no_speech_threshold=0.6,
         log_prob_threshold=-1.0,
         compression_ratio_threshold=2.4,
@@ -224,6 +226,24 @@ def _enrich(
         confidence = min(confidence, 0.50)
         hallucination = max(hallucination, 1.0 - agreement)
     uncertain = _build_uncertain_spans(words)
+    if nbest_texts and len(nbest_texts) > 1:
+        def token_key(token):
+            return re.sub(r"[^\w']", "", token.casefold())
+        first_tokens = [token_key(word.get("word", "")) for word in words]
+        second_tokens = [token_key(token) for token in nbest_texts[1].split()]
+        existing = {span["word_index"] for span in uncertain}
+        for tag, start, end, _j, _k in SequenceMatcher(None, first_tokens, second_tokens).get_opcodes():
+            if tag not in {"replace", "delete"}:
+                continue
+            for index in range(start, end):
+                if index not in existing:
+                    word = words[index]
+                    uncertain.append({
+                        "word": word["word"], "start": word.get("start"), "end": word.get("end"),
+                        "word_index": index, "confidence": word.get("probability"),
+                        "reason": "decode_disagreement",
+                    })
+                    existing.add(index)
     return {
         "text": text, "words": words, "segments": segments,
         "asr_confidence": round(confidence, 3),
@@ -240,27 +260,27 @@ def _enrich(
     }
 
 
-def transcribe_selfhost(audio_path) -> dict:
+def transcribe_selfhost(audio_path, *, keyterms=None) -> dict:
     # Keep both lazy segment iteration and the second decode inside the lock.
     # One model per process prevents concurrent uploads from exhausting RAM/VRAM.
     if not _decode_lock.acquire(timeout=settings.stt_local_wait_seconds):
         raise TimeoutError("Local STT is busy")
     try:
-        return _transcribe_local(audio_path)
+        return _transcribe_local(audio_path, keyterms=keyterms)
     finally:
         _decode_lock.release()
 
 
-def _transcribe_local(audio_path) -> dict:
+def _transcribe_local(audio_path, *, keyterms=None) -> dict:
     model = _load_model()
     normalized = normalize_audio_to_wav(audio_path)
     should_remove = os.fspath(normalized) != os.fspath(audio_path)
     try:
-        text, words, segments = _decode(model, normalized, beam_size=5, temperature=0.0)
+        text, words, segments = _decode(model, normalized, beam_size=5, temperature=0.0, keyterms=keyterms)
         first = _enrich(text, words, segments, provider="selfhost", model=settings.whisper_model)
         uncertain_ratio = len(first["uncertain_spans"]) / max(1, len(words))
-        if first["asr_confidence"] < 0.65 or first["hallucination_risk"] >= 0.35 or uncertain_ratio > 0.30:
-            text2, _words2, _segments2 = _decode(model, normalized, beam_size=1, temperature=0.2)
+        if first["asr_confidence"] < 0.65 or first["hallucination_risk"] >= 0.35 or uncertain_ratio > 0:
+            text2, _words2, _segments2 = _decode(model, normalized, beam_size=1, temperature=0.2, keyterms=keyterms)
             return _enrich(
                 text, words, segments, nbest_texts=[text, text2],
                 agreement=_decode_agreement(text, text2),
@@ -275,7 +295,7 @@ def _transcribe_local(audio_path) -> dict:
                 pass
 
 
-def transcribe_groq(audio_path) -> dict:
+def transcribe_groq(audio_path, *, keyterms=None) -> dict:
     from groq import Groq
     client = Groq(
         api_key=settings.groq_api_key,
@@ -291,6 +311,7 @@ def transcribe_groq(audio_path) -> dict:
                 timestamp_granularities=["segment", "word"],
                 language="en",
                 temperature=0.0,
+                **({"prompt": "Names that may occur: " + ", ".join(keyterms)} if keyterms else {}),
             )
     finally:
         client.close()
@@ -335,30 +356,31 @@ def transcribe_mock(audio_path) -> dict:
     return _enrich(text, words, segments, provider="mock", model="mock")
 
 
-def transcribe(audio_path) -> dict:
+def transcribe(audio_path, *, keyterms=None) -> dict:
     started = time.perf_counter()
-    result = _transcribe(audio_path)
+    result = _transcribe(audio_path, keyterms=keyterms)
     result["latency_ms"] = round((time.perf_counter() - started) * 1000, 2)
     return result
 
 
-def _transcribe(audio_path) -> dict:
+def _transcribe(audio_path, *, keyterms=None) -> dict:
+    kwargs = {"keyterms": keyterms} if keyterms else {}
     provider = settings.stt_provider
     if provider == "mock":
         return transcribe_mock(audio_path)
     if provider == "selfhost":
-        return transcribe_selfhost(audio_path)
+        return transcribe_selfhost(audio_path, **kwargs)
     if provider == "groq":
-        return transcribe_groq(audio_path)
+        return transcribe_groq(audio_path, **kwargs)
     if provider != "auto":
         raise ValueError("Unsupported STT provider")
     try:
-        return transcribe_selfhost(audio_path)
+        return transcribe_selfhost(audio_path, **kwargs)
     except Exception as exc:
         if not settings.groq_api_key:
             raise
         logger.warning("Local STT failed (%s); using Groq fallback", type(exc).__name__)
-        result = transcribe_groq(audio_path)
+        result = transcribe_groq(audio_path, **kwargs)
         result["fallback_used"] = True
         result["fallback_reason"] = type(exc).__name__
         return result

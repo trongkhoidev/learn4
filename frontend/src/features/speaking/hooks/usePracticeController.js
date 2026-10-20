@@ -25,9 +25,10 @@ function fallbackTopics(includeTravel) {
   return topics;
 }
 
-function practiceResult(assessment) {
+function practiceResult(assessment, sessionId) {
   return {
     raw: assessment,
+    sessionId,
     scores: {
       overall: assessment.overall,
       pronunciation: { score: assessment.pronun?.band ?? assessment.pronun?.score ?? null, status: assessment.pronun?.status },
@@ -55,6 +56,7 @@ export function usePracticeController(routeTopicId) {
   const [searchParams] = useSearchParams();
   const savedSessionId = searchParams.get("session");
   const [step, setStep] = useState(1);
+  const [recognitionContext, setRecognitionContext] = useState('');
   const [topics, setTopics] = useState([]);
   const [selectedTopic, setSelectedTopic] = useState(null);
   const [selectedPart, setSelectedPart] = useState("PART 2");
@@ -104,7 +106,7 @@ export function usePracticeController(routeTopicId) {
       .then(response => waitForAssessment(response, controller.signal))
       .then(response => {
         if (controller.signal.aborted) return;
-        setResult(practiceResult(response.result));
+        setResult(practiceResult(response.result, response.id));
         setSelectedTopic({ id: response.topic_id, name: "Bài luyện đã lưu" });
         setSelectedPart(response.part_type || "PART 2");
         setRecordingUrl(response.audio_url || null);
@@ -193,6 +195,7 @@ export function usePracticeController(routeTopicId) {
     try {
       const formData = new FormData();
       formData.append("student_name", studentName);
+      formData.append("recognition_context", recognitionContext);
       formData.append("topic_id", selectedTopic.id || "");
       formData.append("part_type", selectedPart);
       if (currentQuestion?.id) formData.append("question_id", currentQuestion.id);
@@ -203,7 +206,7 @@ export function usePracticeController(routeTopicId) {
 
       const submitted = await speakingApi.submitSpeakingPractice(formData, { signal: controller.signal });
       const response = await waitForAssessment(submitted, controller.signal);
-      setResult(practiceResult(response.result));
+      setResult(practiceResult(response.result, response.id));
       setStep(3);
     } catch (error) {
       if (controller.signal.aborted) return;
@@ -217,7 +220,16 @@ export function usePracticeController(routeTopicId) {
     }
   }
 
+  async function saveReviewDecision(decision) {
+    if (!result?.sessionId) throw new Error("Không tìm thấy bài luyện để lưu.");
+    const response = await speakingApi.saveTranscriptReview(result.sessionId, {
+      ...decision, student_name: studentName,
+    });
+    setResult(practiceResult(response.result, response.id));
+  }
+
   return {
+    recognitionContext, setRecognitionContext, saveReviewDecision,
     step, setStep, topics, selectedTopic, setSelectedTopic, selectedPart, setSelectedPart,
     isEvaluating, result, setResult, questions, questionsLoading, questionIndex, setQuestionIndex, error,
     setError, prepStarted, startPreparation, resetPreparation, prepRemaining, recordingUrl,

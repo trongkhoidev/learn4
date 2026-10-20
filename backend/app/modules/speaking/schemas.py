@@ -2,6 +2,14 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 from typing import List, Optional, Dict, Any, Literal
 from datetime import datetime
 from app.modules.speaking.assessment.contracts import ExaminerReview
+from app.modules.speaking.assessment.transcript_review import TranscriptReview
+
+class TranscriptReviewDecision(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    student_name: str = Field(min_length=1, max_length=200)
+    word_ids: List[str] = Field(min_length=1, max_length=20)
+    action: Literal["accepted", "dismissed"]
+    replacement: str = Field(default="", max_length=120)
 
 class SpeakingQuestionBase(BaseModel):
     topic_id: Optional[str] = None
@@ -231,6 +239,7 @@ class SpeakingAssessmentResult(BaseModel):
     score_type: Literal["diagnostic"] = "diagnostic"
     status: Literal["scored", "partial", "cant_hear", "insufficient_sample", "needs_review", "failed"]
     transcript: str = ""
+    transcript_review: TranscriptReview = Field(default_factory=TranscriptReview)
     noise: Optional[str] = None
     is_relevant: Optional[bool] = None
     overall: Optional[float] = None

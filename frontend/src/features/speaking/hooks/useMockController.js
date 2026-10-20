@@ -17,6 +17,7 @@ function pause(ms, signal) {
 
 export function useMockController(testId, studentName) {
   const [questions, setQuestions] = useState(null);
+  const [recognitionContext, setRecognitionContext] = useState('');
   const [session, setSession] = useState(null);
   const [turnIndex, setTurnIndex] = useState(0);
   const [isEvaluating, setIsEvaluating] = useState(false);
@@ -120,6 +121,7 @@ export function useMockController(testId, studentName) {
     try {
       const form = new FormData();
       form.append("part", String(part));
+      form.append("recognition_context", recognitionContext);
       form.append("question_id", current.id);
       form.append("question_text", current.question_text);
       form.append("file", blob, "audio.webm");
@@ -156,6 +158,7 @@ export function useMockController(testId, studentName) {
   }
 
   return {
+    recognitionContext, setRecognitionContext,
     questions, session, turnIndex, isEvaluating, error, mockResult, prepStarted,
     startPreparation, prepRemaining, current, part, totalTurns, progress, handleRecordingComplete,
   };

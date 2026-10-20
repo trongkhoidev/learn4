@@ -292,3 +292,78 @@ test.describe('Speaking Module', () => {
     await expect(failedRow).toContainText('—');
   });
 });
+
+
+test('Context board shows proposed names inline and saves learner confirmation separately', async ({ page }) => {
+  const text = 'Yes, I absolutely love my hometown, Quang Tri. It has a peaceful atmosphere. Even though I am currently still in Ghana, I always look forward to visiting home.';
+  const tokens = text.split(' ').map((word, index) => ({
+    id: `w${index + 1}`, word, start: index * .4, end: index * .4 + .3,
+    score: /Quang|still|Ghana/.test(word) ? 45 : 96,
+    color: /Quang|still|Ghana/.test(word) ? 'red' : 'green',
+    uncertain: /Quang|still|Ghana/.test(word),
+  }));
+  const idsFor = quote => {
+    const source = quote.split(' ');
+    const index = tokens.findIndex((word, i) => source.every((token, j) => tokens[i + j]?.word === token));
+    return tokens.slice(index, index + source.length).map(word => word.id);
+  };
+  const suggestion = (quote, replacement, source) => ({
+    quote, word_ids: idsFor(quote), replacement, source,
+    kind: source === 'context_only' ? 'possible_mishearing' : 'proper_name',
+    status: 'pending', confirmed_text: null,
+    reason_vi: 'Cách ghi này cần được đối chiếu với bản ghi trước khi xác nhận.',
+  });
+  const criterion = {
+    status: 'scored', band: 6, errors: [], feedback: 'Mẫu giao diện, không phải kết quả chấm audio.',
+    next_action_vi: 'Nói lại một câu với lý do và ví dụ.',
+    examiner_review: {
+      band_reason_vi: 'Bạn phát triển ý rõ nhưng cần thêm bằng chứng về sự linh hoạt.',
+      next_band_gap_vi: 'Mở rộng lý do bằng một trải nghiệm cụ thể.',
+      observations: [{ kind: 'strength', quote: 'peaceful atmosphere.', word_ids: idsFor('peaceful atmosphere.'), explanation_vi: 'Cụm từ diễn tả đúng ý về quê hương.', suggestion: null }],
+    },
+  };
+  const result = {
+    schema_version: 'speaking-v3', status: 'partial', scope: 'practice_answer', overall: null,
+    transcript: text, color_coded_transcript: tokens,
+    fluency: criterion, vocab: criterion, grammar: criterion,
+    pronun: { status: 'insufficient_evidence', feedback: 'Chưa đủ bằng chứng âm vị.', next_action_vi: 'Nghe lại một câu và ghi âm lần nữa.' },
+    transcript_review: { status: 'ready', keyterms: ['Quảng Trị', 'Đà Nẵng'], suggestions: [
+      suggestion('Quang Tri.', 'Quảng Trị', 'provided_term'),
+      suggestion('Ghana,', 'Đà Nẵng', 'provided_term'),
+    ] },
+  };
+  const response = { id: 'context-board', student_name: 'Playwright Tester', part_type: 'PART 1', created_at: new Date().toISOString(), result, status: 'partial' };
+  await page.addInitScript(() => localStorage.setItem('speaking_name', 'Playwright Tester'));
+  await page.route('**/api/v1/speaking/practice/context-board', route => route.fulfill({ json: response }));
+  await page.route('**/api/v1/speaking/practice/context-board/transcript-review', async route => {
+    const decision = route.request().postDataJSON();
+    const item = result.transcript_review.suggestions.find(entry => entry.word_ids.join() === decision.word_ids.join());
+    item.status = decision.action;
+    item.confirmed_text = decision.action === 'accepted' ? decision.replacement : null;
+    await route.fulfill({ json: response });
+  });
+  await page.goto('/speaking/practice?session=context-board');
+  const board = page.getByRole('region', { name: 'Transcript và đối chiếu' });
+  await expect(board.getByRole('button', { name: 'Đối chiếu: Quang Tri. → Quảng Trị', exact: true })).toBeVisible();
+  await expect(board.getByRole('button', { name: 'Đối chiếu: Ghana, → Đà Nẵng', exact: true })).toBeVisible();
+  // A valid "still" stays a reviewable original, never an invented studying correction.
+  await expect(board.getByRole('button', { name: 'Đối chiếu: still', exact: true })).toBeVisible();
+  await expect(board.getByText('studying', { exact: true })).toHaveCount(0);
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await board.screenshot({ path: '/private/tmp/learn4-transcript-board-desktop.png' });
+  await board.getByRole('button', { name: 'Đối chiếu: Ghana, → Đà Nẵng', exact: true }).click();
+  await expect(board.getByText('Theo tên bạn cung cấp.', { exact: false })).toBeVisible();
+  await board.getByLabel('Sau khi nghe, bạn xác nhận đã nói gì?').fill('Da Nang');
+  await board.getByRole('button', { name: 'Xác nhận cách ghi', exact: true }).click();
+  await expect(board.getByRole('status')).toContainText('Đã lưu đối chiếu');
+  expect(result.transcript).toBe(text);
+  expect(result.grammar.band).toBe(6);
+  await page.reload();
+  await expect(board.getByRole('button', { name: 'Đối chiếu: Ghana, → Da Nang', exact: true })).toBeVisible();
+  await board.getByRole('button', { name: 'Đối chiếu: Quang Tri. → Quảng Trị', exact: true }).click();
+  await board.getByRole('button', { name: 'Giữ bản gốc', exact: true }).click();
+  await expect(board.getByRole('button', { name: 'Đối chiếu: Quang Tri.', exact: true })).toBeVisible();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await board.screenshot({ path: '/private/tmp/learn4-transcript-board-mobile.png' });
+});

@@ -416,3 +416,22 @@ def test_invalid_runtime_settings_fail_fast(field, value):
 
     with pytest.raises(ValidationError):
         Settings(_env_file=None, **{field: value})
+
+
+def test_names_are_passed_to_whisper_and_sparse_uncertainty_triggers_redecode(monkeypatch):
+    tokens = ['I', 'live', 'in', 'Ghana', 'and', 'I', 'love', 'my', 'hometown']
+    first = [_FakeSeg(' '.join(tokens), -.05, .01, 1.0, [
+        _FakeWord(token, i*.3, i*.3+.2, .5 if token == 'Ghana' else .97)
+        for i, token in enumerate(tokens)
+    ])]
+    second_tokens = ['I', 'study', 'in', 'Da', 'Nang', 'and', 'I', 'love', 'my', 'hometown']
+    second = [_FakeSeg(' '.join(second_tokens), -.05, .01, 1.0, [])]
+    model = _FakeModel([first, second])
+    _patch_selfhost(monkeypatch, model)
+    result = stt_service.transcribe_selfhost('dummy.webm', keyterms=['Đà Nẵng', 'Quảng Trị'])
+    assert len(model.calls) == 2
+    assert all(call['hotwords'] == 'Đà Nẵng, Quảng Trị' for call in model.calls)
+    assert result['text'] == ' '.join(tokens)
+    assert any(span['word'] == 'live' and span['reason'] == 'decode_disagreement'
+               for span in result['uncertain_spans'])
+    assert result['nbest_texts'][1] == ' '.join(second_tokens)

@@ -8,6 +8,7 @@ from app.integrations.stt import recognition as stt_service
 from app.integrations.audio.processor import probe_audio_duration
 from app.modules.speaking.pronunciation import acoustic, service as pronunciation_service
 from app.modules.speaking.assessment import raters
+from .transcript_review import parse_keyterms, review_transcript
 from app.operations import budget
 from .rubric import RUBRIC_SOURCE, RUBRIC_VERSION
 
@@ -119,7 +120,7 @@ def _attach_uncertainty(words: list, source_spans: list) -> list[dict]:
 
 def _result(status, *, transcript="", noise=None, relevant=None, criteria=None, words=None,
             uncertain=None, reasons=None, coaching_flags=None, stt=None, raters=None,
-            scope="practice_answer", error=None):
+            scope="practice_answer", error=None, transcript_review=None):
     criteria = criteria or {}
     aliases = {
         "pronun": "pronunciation",
@@ -166,6 +167,7 @@ def _result(status, *, transcript="", noise=None, relevant=None, criteria=None, 
         "score_type": "diagnostic",
         "status": status,
         "transcript": transcript,
+        "transcript_review": transcript_review or {"status": "not_needed", "suggestions": [], "keyterms": []},
         "noise": noise,
         "is_relevant": relevant,
         "overall": overall,
@@ -258,7 +260,7 @@ def _criterion_from_rater(rater: dict, *, basis: str, words: list, uncertainty: 
     )
 
 
-def grade_speaking(audio_path: str, question: str, task_type: str, tier: str = "practice") -> dict:
+def grade_speaking(audio_path: str, question: str, task_type: str, tier: str = "practice", *, recognition_context: str = "") -> dict:
     tier = budget.resolve_tier(tier)
     stt_ready = stt_service.provider_readiness()
     llm_ready = provider_readiness()
@@ -268,7 +270,8 @@ def grade_speaking(audio_path: str, question: str, task_type: str, tier: str = "
         return failed_result("llm_provider_not_ready")
 
     try:
-        stt = stt_service.transcribe(audio_path)
+        keyterms = parse_keyterms(recognition_context)
+        stt = stt_service.transcribe(audio_path, **({"keyterms": keyterms} if keyterms else {}))
     except Exception as exc:
         return _result(
             "failed", criteria=_blank_criteria("failed", "Không thể nhận dạng audio."),
@@ -312,6 +315,19 @@ def grade_speaking(audio_path: str, question: str, task_type: str, tier: str = "
             criteria=_blank_criteria("insufficient_evidence", "Không nhận dạng được lời nói."),
             words=words, uncertain=uncertain, stt=stt,
         )
+
+    transcript_review = review_transcript(
+        question, words, uncertain, keyterms, stt.get("nbest_texts") or [],
+    )
+    # A proposed ASR replacement is not an established learner error. Keep the
+    # original words, but withhold claims about spans awaiting listening.
+    disputed_ids = {word_id for suggestion in transcript_review["suggestions"]
+                    for word_id in suggestion["word_ids"]}
+    existing_uncertain = {span["word_id"] for span in uncertain}
+    uncertain.extend({"word_id": word["id"], "word": word["word"],
+                      "start": word["start"], "end": word["end"],
+                      "reason": "contextual_asr_review"}
+                     for word in words if word["id"] in disputed_ids - existing_uncertain)
 
     timed_words = [word for word in words if word.get("timing_valid")]
     total_duration = 0.0
@@ -407,6 +423,7 @@ def grade_speaking(audio_path: str, question: str, task_type: str, tier: str = "
         coaching_flags=coaching_flags,
         stt=stt,
         raters=assessment_raters,
+        transcript_review=transcript_review,
     )
     budget.record(tier)
     return result

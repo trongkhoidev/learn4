@@ -54,6 +54,7 @@ async def submit_mock_turn(
     part: int = Form(...),
     question_id: Optional[str] = Form(None),
     question_text: Optional[str] = Form(None),
+    recognition_context: str = Form("", max_length=400),
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
 ):
@@ -82,6 +83,7 @@ async def submit_mock_turn(
         question_text=q_text,
         audio_url=audio_url,
         status="pending",
+        result={"status": "pending", "recognition_context": recognition_context},
     )
     session.current_part = max(session.current_part, part)
     db.add(turn)

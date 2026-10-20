@@ -2,6 +2,7 @@
 
 import json
 import re
+import unicodedata
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -26,16 +27,16 @@ class GrammarError(BaseModel):
 
 class ExaminerObservation(Evidence):
     kind: Literal["strength", "limitation", "error", "optional_improvement"]
-    explanation_vi: str = Field(min_length=1, max_length=600)
+    explanation_vi: str = Field(min_length=1, max_length=360)
     suggestion: str | None = Field(default=None, max_length=300)
 
 
 class ExaminerReview(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    band_reason_vi: str = Field(min_length=1, max_length=800)
-    next_band_gap_vi: str = Field(min_length=1, max_length=600)
-    observations: list[ExaminerObservation] = Field(min_length=1, max_length=4)
+    band_reason_vi: str = Field(min_length=1, max_length=500)
+    next_band_gap_vi: str = Field(min_length=1, max_length=360)
+    observations: list[ExaminerObservation] = Field(min_length=1, max_length=2)
 
 
 class CriterionRaterResult(BaseModel):
@@ -77,7 +78,8 @@ class RaterContractError(ValueError):
 
 
 def _normalized_quote(value: str) -> str:
-    return " ".join(re.findall(r"[a-z0-9']+", value.lower().replace("’", "'")))
+    normalized = unicodedata.normalize("NFC", value).casefold().replace("’", "'")
+    return " ".join(re.findall(r"[^\W_]+(?:'[^\W_]+)*", normalized))
 
 
 def _validate_reference(quote: str, word_ids: list[str], by_id: dict, uncertain_ids: set, label: str):

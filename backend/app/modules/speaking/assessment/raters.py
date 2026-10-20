@@ -65,13 +65,20 @@ compare the pattern with the descriptors; choose a band only after that review.
 Do not start with a default band 6 or reward length, sophistication, or confidence
 alone. A single practice answer supports a local diagnostic estimate, not claims
 about performance across unseen topics or the whole IELTS test.
+Keep feedback concise and specific: feedback_vi at most two short Vietnamese
+sentences; band_reason_vi one sentence; next_band_gap_vi one sentence; at most
+two prioritized observations (one strength and one issue only when supported).
+Each explanation_vi is one short sentence. next_action_vi is one short drill
+with an adapted example and a success check. Do not repeat the same explanation
+in the summary, observations and practice action. No long rewritten model answer
+or guaranteed band label for a suggested sentence.
 Return examiner_review for every scored result:
 - band_reason_vi: explain why the observed range AND control fit this band,
   referring to the quoted evidence and the descriptor; no generic praise.
 - next_band_gap_vi: explain the specific descriptor feature not yet demonstrated
   consistently for the next higher band. At band 9 describe how to sustain control.
   Distinguish an observed weakness from a feature the short sample cannot establish.
-- observations: 1-4 prioritized, specific findings. Each contains an exact,
+- observations: 1-2 prioritized, specific findings. Each contains an exact,
   contiguous quote from ONE turn, word_ids, kind, explanation_vi, and suggestion
   (null when no correction is appropriate). Use strength only for demonstrated
   success, limitation for a supported pattern, error for an objective language
@@ -90,48 +97,32 @@ examiner_review may be null. Never claim certainty from ASR alone."""
 
 _CRITERION_SPECIFIC_RULES = {
     "fluency_coherence": """
-Criterion focus: Speech rate, continuity, natural flow, hesitations/pauses, cohesive devices, logical progression, and topic development.
-- EXAMINER RIGOR: Use the supplied public descriptors rigorously. Do not inflate bands or claim official examiner credentials. Judge demonstrated continuity and development in context.
-- Context & Question Alignment: Compare the answer directly with the Question and Part. Part 1 responses should answer the question naturally with relevant development where appropriate. There is no sentence-count or word-count band cap. Distinguish insufficient evidence of sustained development from an observed coherence problem.
-- Speech rate & Pauses: If verified_audio_features are provided, use words_per_minute and pause_ratio only descriptively, never as band thresholds or an ideal rate. Timestamps do not reveal whether a pause is hesitation or content planning; describe that uncertainty. Without timing, limit observations to textual coherence.
-- Cohesive Devices: Look for varied discourse markers ('To begin with', 'Actually', 'In particular', 'What I find most interesting is'). Over-reliance on basic 'and' or 'as well as' limits the band.
-- CRITICAL: Never evaluate grammar rules or vocabulary under Fluency. Evaluate strictly delivery flow and coherence.
-- Feedback structure (feedback_vi): You MUST structure into 3 distinct sections using these exact labels:
-  Ưu điểm: [Nhận xét điểm tích cực: mức độ hiểu câu hỏi, ý tưởng chính, và sự liền mạch ở các cụm từ nói tốt kèm trích dẫn]
-  Hạn chế: [Phân tích nghiêm khắc: đối chiếu tốc độ WPM thực tế, số khoảng dừng ngập ngừng, độ dài câu trả lời đã đủ chuẩn Part chưa, tại sao bị giới hạn band]
-  Cải thiện: [Hướng dẫn mở rộng ý theo công thức ARE (Answer - Reason - Example) và cung cấp câu mẫu Band 7.5 - 8.0 nâng cấp từ bài nói của thí sinh]
-- Next action (next_action_vi): Đưa ra đúng 1 bài tập cụ thể để luyện phản xạ nói liền mạch không ngập ngừng (kèm ví dụ sát bài nói và tiêu chí tự kiểm tra).""",
-
+Assess continuity, relevance, logical links and development appropriate to the
+question and Part. Report measured WPM or pauses descriptively, never as a band
+threshold. Do not infer hesitation causes, stress or natural rhythm from text.
+A short Part 1 answer can be appropriate; do not use sentence/word-count caps.
+Do not critique grammar or vocabulary in this criterion. Identify the single
+most useful development or cohesion change, with a brief example from this answer.
+Relevance is a coaching flag, not an automatic language-score deduction.""",
     "lexical_resource": """
-Criterion focus: Vocabulary range, appropriateness, topic-specific collocations, precision, idiomatic language, and paraphrase ability.
-- EXAMINER RIGOR: Apply the public descriptors rigorously without claiming official examiner credentials. Do not infer a high band from isolated jargon. Judge precision and flexibility across the available sample.
-- Repetition & Variety: Repeated topic nouns do not automatically show limited flexibility. Identify repetition only when it restricts expression; no fixed repetition penalty or band cap. Use examiner_review observations for lexical errors and optional alternatives, preserving meaning in each suggestion.
-- Domain Jargon vs Collocations: Merely listing basic terminology ('AI', 'blockchain', 'technology') is not evidence of Band 7+ vocabulary. Band 7 requires natural collocations and idiomatic combinations ('cutting-edge curriculum', 'hands-on immersion', 'steep learning curve', 'specialized in').
-- Context & Question Alignment: Check whether vocabulary directly addresses the nuances of the question or stays generic.
-- CRITICAL: Do NOT evaluate grammatical tense or agreement under Lexical Resource. Focus purely on word choices and expressions.
-- Feedback structure (feedback_vi): You MUST structure into 3 distinct sections using these exact labels:
-  Ưu điểm: [Khen ngợi từ vựng hoặc thuật ngữ đúng ngữ cảnh kèm trích dẫn chứng cứ]
-  Hạn chế: [Chỉ rõ các từ/cụm từ bị lặp lại, các cách diễn đạt đơn điệu hoặc thiếu collocation tự nhiên; phân tích vì sao vốn từ chưa đủ đa dạng để đạt Band 7+]
-  Cải thiện: [Gợi ý 3-4 collocations/idioms đắt giá theo chủ đề và cung cấp câu trả lời mẫu Band 8.0 sử dụng từ vựng nâng cao]
-- Next action (next_action_vi): Đưa ra đúng 1 hành động mở rộng vốn từ (ví dụ: học và thay thế các từ bị lặp bằng 3 collocations gợi ý).""",
-
+Assess precision, flexibility, collocation and paraphrase in context. Topic
+nouns repeated twice do not automatically imply limited range; jargon or idioms
+alone do not prove a high band. Do not force rare vocabulary. Use an error
+observation only for a demonstrably wrong meaning/collocation; a more natural
+valid alternative is optional_improvement. Do not penalize proper names or
+Vietnamese spelling, and never infer a mistaken place/person from expectations.
+Do not assess tenses or agreement here. Give a minimal, useful replacement.""",
     "grammatical_range_accuracy": """
-Criterion focus: Sentence structure variety (simple, compound, complex), grammatical accuracy, and communicative precision.
-- EXAMINER RIGOR: Evaluate both structural range and control against descriptors. Do not use fixed error deductions or claim official examiner credentials.
-- Structural Range: Merely joining noun phrases with 'as well as' or 'and' is simple coordination, NOT a complex grammatical structure. Distinguish coordination from subordination. Evaluate control of clauses and other structures in context; passive voice alone does not make a sentence complex. No fixed grammar checklist or automatic band cap.
-- Error Sensitivity: Thoroughly inspect:
-  - Subject-verb agreement (e.g. 'my course focus' vs 'focuses')
-  - Articles (a / an / the / zero article)
-  - Prepositions (in, on, at, for)
-  - Verb tenses & aspects
-  - Plural / singular noun forms
-- Review the entire reliable transcript, not just evidence_candidates. Return up to six distinct, high-impact representative errors with minimal corrections and clear Vietnamese explanations. Use error only for unambiguous violations supported by context; valid but less elegant phrasing is optional_improvement. Do not count self-corrected false starts or ASR punctuation as grammar errors.
-- Spoken English tolerance: NEVER flag natural spoken fillers ('Well', 'You know') as errors.
-- Feedback structure (feedback_vi): You MUST structure into 3 distinct sections using these exact labels:
-  Ưu điểm: [Nhận xét về cấu trúc ngữ pháp thí sinh đã kiểm soát tốt kèm trích dẫn]
-  Hạn chế: [Phân tích nghiêm khắc: chỉ rõ sự thiếu đa dạng về cấu trúc câu (nếu chỉ dùng câu đơn/ghép), thống kê các lỗi ngữ pháp hoặc diễn đạt chưa chuẩn]
-  Cải thiện: [Cung cấp bản nâng cấp câu Band 7.5 - 8.0 sử dụng cấu trúc phức nâng cao (mệnh đề quan hệ, câu điều kiện, đảo ngữ hoặc phân từ) để thí sinh học hỏi]
-- Next action (next_action_vi): Đưa ra đúng 1 bài tập ngữ pháp trọng tâm để khắc phục điểm yếu cấu trúc vừa phân tích."""
+Assess both range and control, including effective simple and complex clauses.
+Coordination is not subordination; passive voice alone does not make a sentence
+complex. No grammar checklist or fixed band cap. Review the entire reliable
+transcript for agreement, tense, articles, plurals and clause structure. Return
+up to six distinct, representative objective errors, with minimal corrections
+and a short Vietnamese explanation. Prioritize patterns affecting clarity.
+Contractions, natural fillers, conversational ellipsis, self-corrected starts
+and ASR punctuation are not errors. Establish tense and number from context;
+never assume an unclear ending was a learner error. Valid but less elegant
+phrasing is optional_improvement. Never repair proper names as grammar.""",
 }
 
 _SYSTEM = {

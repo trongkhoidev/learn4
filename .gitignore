@@ -3,7 +3,7 @@ __pycache__/
 *.py[cod]
 *$py.class
 *.so
-.venv/
+.venv
 venv/
 ENV/
 .pytest_cache/
@@ -13,12 +13,12 @@ htmlcov/
 *.sqlite*
 *.db
 backend/storage/
-storage/
+/storage/
 backend/backups/
 backups/
 
 # Node & Frontend
-node_modules/
+node_modules
 dist/
 test-results/
 playwright-report/

@@ -108,8 +108,12 @@ def process_job(job_id: str):
         return
     final_attempt = (job.attempts or 0) >= settings.speaking_job_max_attempts
     try:
+        model = {"practice": PracticeSession, "turn": SpeakingTurn, "submission": Submission}[job.target_type]
+        target = db.get(model, job.target_id)
+        recognition_context = (target.result or {}).get("recognition_context", "") if target else ""
         result = grade_speaking(
             job.audio_path, job.question_text, job.task_type, job.tier,
+            **({"recognition_context": recognition_context} if recognition_context else {}),
         )
         result.setdefault("assessment_meta", {})
         result["assessment_meta"].update({

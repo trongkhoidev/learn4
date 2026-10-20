@@ -7,6 +7,7 @@ import GrammarErrorList from '../components/GrammarErrorList.jsx';
 import PronunErrorList from '../components/PronunErrorList.jsx';
 import FeedbackFocusCard from '../components/FeedbackFocusCard.jsx';
 import SpeakButton from '../components/SpeakButton.jsx';
+import RecognitionContextField from '../components/RecognitionContextField.jsx';
 import {
   AlertCircle, ArrowLeft, ArrowRight, BookOpen, CheckCircle2, ChevronLeft,
   ChevronRight, Clock3, Mic2, Sparkles,
@@ -16,6 +17,7 @@ import { Link, useParams } from 'react-router-dom';
 export default function SpeakingPractice() {
   const { topicId: routeTopicId } = useParams();
   const {
+    recognitionContext, setRecognitionContext, saveReviewDecision,
     step, setStep, topics, selectedTopic, setSelectedTopic, selectedPart, setSelectedPart,
     isEvaluating, result, setResult, questions, questionsLoading, questionIndex, setQuestionIndex, error,
     setError, prepStarted, startPreparation, resetPreparation, prepRemaining, recordingUrl,
@@ -253,6 +255,8 @@ export default function SpeakingPractice() {
                 </div>
               )}
 
+              <RecognitionContextField value={recognitionContext} onChange={setRecognitionContext} disabled={isEvaluating} />
+
               {recorderReady && (
                 <AudioRecorderPro
                   key={`${currentQuestion?.id || displayedQuestion}-${selectedPart}`}
@@ -303,7 +307,7 @@ export default function SpeakingPractice() {
             </div>
           )}
 
-          <div className="grid gap-5 xl:grid-cols-[minmax(0,1.15fr)_minmax(320px,.85fr)]">
+          <div className="space-y-5">
             <section className="space-y-4">
               {recordingUrl && (
                 <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
@@ -311,7 +315,7 @@ export default function SpeakingPractice() {
                   <audio ref={audioRef} controls src={recordingUrl} className="w-full" />
                 </div>
               )}
-              <WordHighlighter words={result.words} onWordClick={playWord} />
+              <WordHighlighter words={result.words} review={result.raw.transcript_review} onWordClick={playWord} onReviewDecision={saveReviewDecision} />
             </section>
             <GrammarErrorList errors={result.errors} status={result.raw.grammar?.status} />
           </div>

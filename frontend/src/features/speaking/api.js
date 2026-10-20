@@ -15,3 +15,5 @@ export const startSpeakingMock = (formData, { signal } = {}) => request("POST", 
 export const getSpeakingMock = (id, { signal } = {}) => request("GET", `/speaking/mock-sessions/${id}`, { signal });
 export const submitSpeakingMockTurn = (id, formData, { signal } = {}) => request("POST", `/speaking/mock-sessions/${id}/turns`, { form: formData, signal });
 export const completeSpeakingMock = (id, { signal } = {}) => request("POST", `/speaking/mock-sessions/${id}/complete`, { signal });
+
+export const saveTranscriptReview = (id, json) => request("PATCH", `/speaking/practice/${id}/transcript-review`, { json });
