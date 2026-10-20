@@ -41,6 +41,9 @@ curl_out.txt
 .env
 .env.*
 !.env.example
+.oci-private/
+deploy/oracle/state.json
+deploy/oracle/.env.runtime
 *.pem
 *.key
 

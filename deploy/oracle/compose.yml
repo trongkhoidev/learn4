@@ -1,0 +1,58 @@
+services:
+  backend:
+    build:
+      context: ../..
+      dockerfile: backend/Dockerfile
+    restart: unless-stopped
+    env_file:
+      - ../../.env
+    environment:
+      DATABASE_URL: sqlite:////data/lexilearn.db
+      STORAGE_DIR: /data/storage
+      HF_HOME: /models/huggingface
+      CORS_ORIGINS: https://learn4-app.vercel.app,https://learn4-ai.vercel.app
+      WHISPER_DEVICE: cpu
+      WHISPER_COMPUTE_TYPE: int8
+      WHISPER_PRELOAD: "true"
+      WHISPER_CPU_THREADS: "4"
+      STT_LATENCY_PROFILE: fast
+      STT_PROVIDER: ensemble
+      STT_ENSEMBLE_PROVIDERS: selfhost,deepgram
+      STT_ENSEMBLE_MIN_PROVIDERS: "2"
+    volumes:
+      - ${LEARN4_DATA_DIR:-/opt/learn4-data}:/data
+      - whisper_models:/models
+    expose:
+      - "8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import json,urllib.request,sys; d=json.load(urllib.request.urlopen('http://127.0.0.1:8000/ready')); sys.exit(0 if d['status']=='ready' else 1)"]
+      interval: 15s
+      timeout: 5s
+      retries: 30
+      start_period: 180s
+    deploy:
+      resources:
+        limits:
+          memory: 18G
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    environment:
+      BACKEND_HOST: ${BACKEND_HOST}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  whisper_models:
+  caddy_data:
+  caddy_config:
