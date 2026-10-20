@@ -5,12 +5,8 @@
   "outputDirectory": "frontend/dist",
   "rewrites": [
     {
-      "source": "/api/(.*)",
-      "destination": "https://measureless-trogonoid-marisha.ngrok-free.dev/api/$1"
-    },
-    {
       "source": "/storage/(.*)",
-      "destination": "https://measureless-trogonoid-marisha.ngrok-free.dev/storage/$1"
+      "destination": "/api/storage/$1"
     },
     {
       "source": "/(.*)",

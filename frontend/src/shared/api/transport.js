@@ -20,6 +20,8 @@ export async function request(method, path, { json, form, teacher, signal } = {}
   }
 
   const response = await fetch(API_BASE + path, { method, headers, body, signal });
+  const contentType = response.headers.get("content-type") || "";
+
   if (!response.ok) {
     let detail = `HTTP ${response.status}`;
     try {
@@ -30,5 +32,10 @@ export async function request(method, path, { json, form, teacher, signal } = {}
     }
     throw new Error(detail);
   }
+
+  if (contentType.includes("text/html")) {
+    throw new Error("Máy chủ phản hồi trang web thay vì dữ liệu JSON. Vui lòng tải lại trang.");
+  }
+
   return response.json();
 }
