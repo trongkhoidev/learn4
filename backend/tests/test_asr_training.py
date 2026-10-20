@@ -4,6 +4,7 @@ import pytest
 
 from scripts.asr_training.evaluate_asr import evaluate
 from scripts.asr_training.prepare_manifest import training_inputs, validate_rows
+from scripts.asr_training.train_whisper_lora import training_rows as lora_training_rows
 
 
 def _manifest_row(sample, speaker, split="train"):
@@ -39,6 +40,22 @@ def test_manifest_rejects_speaker_and_session_leakage():
     rows = [_manifest_row("s1", "p1", "train"), _manifest_row("s2", "p1", "test")]
     errors = validate_rows(rows, as_of=date(2026, 10, 18))
     assert any("speaker_id" in error and "multiple splits" in error for error in errors)
+
+
+def test_lora_training_rows_require_real_audio_and_both_splits(tmp_path):
+    (tmp_path / "audio").mkdir()
+    (tmp_path / "audio" / "s1.wav").write_bytes(b"wav")
+    (tmp_path / "audio" / "s2.wav").write_bytes(b"wav")
+    rows = [_manifest_row("s1", "p1"), _manifest_row("s2", "p2", "validation")]
+    manifest = tmp_path / "manifest.jsonl"
+    manifest.write_text("".join(__import__("json").dumps(row) + "\n" for row in rows))
+    exported = lora_training_rows(manifest, min_train=1, min_validation=1)
+    assert exported["train"][0]["text"] == "Yesterday I go to the park."
+    assert exported["validation"][0]["sample_id"] == "s2"
+
+    (tmp_path / "audio" / "s2.wav").unlink()
+    with pytest.raises(ValueError, match="audio files are missing"):
+        lora_training_rows(manifest, min_train=1, min_validation=1)
 
 
 def test_asr_evaluator_reports_error_preservation_silence_slices_and_speaker_ci():

@@ -293,16 +293,32 @@ def _transcribe_local(audio_path, *, keyterms=None) -> dict:
     normalized = normalize_audio_to_wav(audio_path)
     should_remove = os.fspath(normalized) != os.fspath(audio_path)
     try:
-        text, words, segments = _decode(model, normalized, beam_size=5, temperature=0.0, keyterms=keyterms)
+        fast = settings.stt_latency_profile == "fast"
+        beam_size = settings.whisper_fast_beam_size if fast else 5
+        text, words, segments = _decode(
+            model, normalized, beam_size=beam_size, temperature=0.0, keyterms=keyterms,
+        )
         first = _enrich(text, words, segments, provider="selfhost", model=settings.whisper_model)
         uncertain_ratio = len(first["uncertain_spans"]) / max(1, len(words))
-        if first["asr_confidence"] < 0.65 or first["hallucination_risk"] >= 0.35 or uncertain_ratio > 0:
+        # In fast mode Deepgram is the independent alternate decode. Repeating
+        # Whisper with nearly identical parameters adds latency without adding
+        # independent evidence. Balanced mode retains the defensive second pass.
+        if not fast and (
+            first["asr_confidence"] < 0.65
+            or first["hallucination_risk"] >= 0.35
+            or uncertain_ratio > 0
+        ):
             text2, _words2, _segments2 = _decode(model, normalized, beam_size=1, temperature=0.2, keyterms=keyterms)
-            return _enrich(
+            second_pass = _enrich(
                 text, words, segments, nbest_texts=[text, text2],
                 agreement=_decode_agreement(text, text2),
                 provider="selfhost", model=settings.whisper_model,
             )
+            second_pass["decode_passes"] = 2
+            second_pass["latency_profile"] = settings.stt_latency_profile
+            return second_pass
+        first["decode_passes"] = 1
+        first["latency_profile"] = settings.stt_latency_profile
         return first
     finally:
         if should_remove:

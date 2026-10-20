@@ -65,3 +65,25 @@ python scripts/asr_training/evaluate_asr.py benchmark-output/deepgram.jsonl
 Run all providers on the exact same frozen test split. Provider failures remain
 as empty predictions and are visible in WER; the runner never silently falls
 back to a different engine.
+
+## LoRA fine-tuning
+
+Examiner bands are never Whisper targets. Fine-tune Whisper only with short
+audio clips and human-verbatim transcripts; use the separate calibration tools
+for examiner criterion ratings. Each training clip must be at most 30 seconds,
+and all clips from one speaker remain in the same split.
+
+On an isolated CUDA machine:
+
+```sh
+pip install -r requirements-training.txt
+python scripts/asr_training/train_whisper_lora.py manifest.jsonl \
+  --output artifacts/whisper-ielts-lora
+```
+
+The trainer refuses fewer than 100 train clips or 20 validation clips by
+default, missing audio, expired consent, split leakage, and clips over Whisper's
+30-second window. It saves both the LoRA adapter and a merged Transformers
+checkpoint. Convert the merged checkpoint to CTranslate2, benchmark it on the
+frozen test split with `evaluate_asr.py`, and promote it only when it improves
+WER and preserves real grammar errors, fillers, repetitions, and false starts.

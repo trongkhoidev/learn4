@@ -48,6 +48,8 @@ class Settings(BaseSettings):
     whisper_compute_type: str = "int8"
     whisper_preload: bool = False
     whisper_cpu_threads: int = Field(default=4, ge=1)
+    stt_latency_profile: Literal["fast", "balanced"] = "fast"
+    whisper_fast_beam_size: int = Field(default=3, ge=1, le=5)
     stt_provider: Literal[
         "selfhost", "groq", "deepgram", "elevenlabs", "ensemble", "auto", "mock",
     ] = "selfhost"
@@ -67,8 +69,9 @@ class Settings(BaseSettings):
     speaking_job_poll_seconds: float = 0.5
     speaking_async_default: bool = False
     scoring_version: str = "ielts-evidence-ensemble-v4"
-    stt_profile_version: str = "multi-asr-en-v1"
+    stt_profile_version: str = "multi-asr-fast-en-v2"
     calibration_version: str = "uncalibrated"
+    speaking_band_calibration_path: str = ""
     # Conservative review gates; these are heuristic triggers, not probabilities.
     speaking_review_hallucination_threshold: float = 0.75
     speaking_review_agreement_threshold: float = 0.65

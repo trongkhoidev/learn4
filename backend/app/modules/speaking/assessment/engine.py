@@ -10,6 +10,7 @@ from app.modules.speaking.pronunciation import acoustic, service as pronunciatio
 from app.modules.speaking.assessment import raters
 from .transcript_review import parse_keyterms, review_transcript
 from .quality import build_assessment_quality
+from .calibration import calibrate_band
 from app.operations import budget
 from .rubric import RUBRIC_SOURCE, RUBRIC_VERSION
 
@@ -240,6 +241,7 @@ def failed_result(reason: str, error: str | None = None, scope: str = "practice_
 def _criterion_from_rater(rater: dict, *, basis: str, words: list, uncertainty: list) -> dict:
     status = rater.get("status", "failed")
     band = rater.get("band") if status == "scored" else None
+    band, band_calibration = calibrate_band(rater.get("criterion", ""), band)
     errors = []
     if rater.get("criterion") == "grammatical_range_accuracy":
         for error in rater.get("errors", []):
@@ -265,6 +267,7 @@ def _criterion_from_rater(rater: dict, *, basis: str, words: list, uncertainty: 
         reason=rater.get("failure_reason"),
         relevance=rater.get("relevance"),
         coverage_by_part=rater.get("coverage_by_part", {}),
+        band_calibration=band_calibration,
     )
 
 

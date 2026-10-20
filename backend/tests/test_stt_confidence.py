@@ -149,6 +149,7 @@ def test_selfhost_uses_fixed_ielts_english_profile(monkeypatch):
 
 
 def test_selfhost_second_pass_on_low_confidence(monkeypatch):
+    monkeypatch.setattr(stt_service.settings, "stt_latency_profile", "balanced")
     low = [_FakeSeg("alpha beta gamma", -1.5, 0.2, 1.0,
                     [_FakeWord("alpha", 0.0, 0.4, 0.5),
                      _FakeWord("beta", 0.5, 0.9, 0.4),
@@ -164,6 +165,22 @@ def test_selfhost_second_pass_on_low_confidence(monkeypatch):
     assert out["asr_confidence"] <= 0.50
     assert out["hallucination_risk"] >= 0.50
     assert out["text"] == "alpha beta gamma"  # first hypothesis kept, flagged
+
+
+def test_selfhost_fast_profile_uses_one_smaller_beam_decode(monkeypatch):
+    low = [_FakeSeg("alpha beta", -1.5, 0.2, 1.0, [
+        _FakeWord("alpha", 0.0, 0.4, 0.5),
+        _FakeWord("beta", 0.5, 0.9, 0.4),
+    ])]
+    model = _FakeModel([low])
+    _patch_selfhost(monkeypatch, model)
+    monkeypatch.setattr(stt_service.settings, "stt_latency_profile", "fast")
+    monkeypatch.setattr(stt_service.settings, "whisper_fast_beam_size", 3)
+    out = stt_service.transcribe_selfhost("dummy.webm")
+    assert len(model.calls) == 1
+    assert model.calls[0]["beam_size"] == 3
+    assert out["decode_passes"] == 1
+    assert out["latency_profile"] == "fast"
 
 
 def test_groq_missing_metrics_stay_none_and_penalized(monkeypatch):
@@ -419,6 +436,7 @@ def test_invalid_runtime_settings_fail_fast(field, value):
 
 
 def test_names_are_passed_to_whisper_and_sparse_uncertainty_triggers_redecode(monkeypatch):
+    monkeypatch.setattr(stt_service.settings, "stt_latency_profile", "balanced")
     tokens = ['I', 'live', 'in', 'Ghana', 'and', 'I', 'love', 'my', 'hometown']
     first = [_FakeSeg(' '.join(tokens), -.05, .01, 1.0, [
         _FakeWord(token, i*.3, i*.3+.2, .5 if token == 'Ghana' else .97)

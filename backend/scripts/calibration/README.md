@@ -48,3 +48,22 @@ The report includes MAE, QWK, bias, within-half accuracy, criterion coverage,
 95% bootstrap intervals resampled by speaker, sample and speaker counts per
 slice, and release gates. The 30-speaker minimum and score thresholds are
 internal release gates, not proof of examiner equivalence or IELTS certification.
+
+## Fit a production band calibrator
+
+Examiner ratings tune the assessment layer, not Whisper transcript weights.
+After freezing speaker-disjoint train, validation, and test splits, fit only on
+the training split:
+
+```sh
+python scripts/calibration/fit_band_calibration.py labels.jsonl \
+  --output artifacts/speaking-band-calibration.json \
+  --version examiner-cal-2026-01 --min-samples 100 --min-speakers 30
+python scripts/calibration/evaluate.py labels.jsonl --split test --min-speakers 30
+```
+
+Set `SPEAKING_BAND_CALIBRATION_PATH` and `CALIBRATION_VERSION` only after the
+frozen test report passes the release gates. The fitter requires two hidden,
+distinct examiner ratings per criterion and adjudication for disagreements over
+one band. Weighted isotonic regression corrects systematic band bias without
+allowing the mapping to reverse band order.
