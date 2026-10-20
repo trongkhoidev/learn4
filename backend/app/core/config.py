@@ -38,6 +38,9 @@ class Settings(BaseSettings):
     deepgram_stt_model: str = "nova-3"
     elevenlabs_api_key: str = ""
     elevenlabs_stt_model: str = "scribe_v2"
+    cloudflare_worker_url: str = ""
+    cloudflare_worker_token: str = ""
+    cloudflare_stt_model: str = "@cf/openai/whisper-large-v3-turbo"
 
     tier_exam: str = "70b,70b,70b"
     tier_practice: str = "70b,70b,70b"
@@ -51,12 +54,12 @@ class Settings(BaseSettings):
     stt_latency_profile: Literal["fast", "balanced"] = "fast"
     whisper_fast_beam_size: int = Field(default=3, ge=1, le=5)
     stt_provider: Literal[
-        "selfhost", "groq", "deepgram", "elevenlabs", "ensemble", "auto", "mock",
+        "selfhost", "groq", "deepgram", "elevenlabs", "cloudflare", "ensemble", "auto", "mock",
     ] = "selfhost"
     # Ordered tie-break priority for the transcript medoid. Providers without
     # credentials are skipped, so this can be enabled before every key is set.
     stt_ensemble_providers: str = "deepgram,elevenlabs,selfhost"
-    stt_ensemble_min_providers: int = Field(default=2, ge=1, le=4)
+    stt_ensemble_min_providers: int = Field(default=2, ge=1, le=5)
     stt_local_wait_seconds: float = Field(default=30.0, ge=0, allow_inf_nan=False)
     stt_remote_timeout_seconds: float = Field(default=60.0, gt=0, allow_inf_nan=False)
     audio_process_timeout_seconds: float = Field(default=60.0, gt=0, allow_inf_nan=False)
@@ -102,7 +105,7 @@ class Settings(BaseSettings):
 
     @property
     def stt_ensemble_provider_list(self) -> list[str]:
-        allowed = {"selfhost", "groq", "deepgram", "elevenlabs"}
+        allowed = {"selfhost", "groq", "deepgram", "elevenlabs", "cloudflare"}
         return list(dict.fromkeys(
             provider.strip().lower()
             for provider in self.stt_ensemble_providers.split(",")

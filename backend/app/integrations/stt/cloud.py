@@ -1,5 +1,6 @@
 """Cloud STT adapters normalized for the speaking evidence pipeline."""
 
+import base64
 import math
 import mimetypes
 from pathlib import Path
@@ -18,6 +19,89 @@ def _bounded_probability(value, default=None):
         return max(0.0, min(1.0, float(value)))
     except (TypeError, ValueError):
         return default
+
+
+def transcribe_cloudflare(audio_path, *, keyterms=None) -> dict:
+    """Transcribe English through the protected Workers AI Whisper endpoint."""
+    if not settings.cloudflare_worker_url or not settings.cloudflare_worker_token:
+        raise CloudSTTError("Cloudflare Workers AI is not configured")
+    path = Path(audio_path)
+    content_type = mimetypes.guess_type(path.name)[0] or "application/octet-stream"
+    prompt = "English IELTS speaking. Preserve fillers, repetitions and grammar exactly."
+    if keyterms:
+        prompt += " Names and places that may occur: " + ", ".join(keyterms[:100])
+    encoded_prompt = base64.b64encode(prompt[:1800].encode("utf-8")).decode("ascii")
+    url = settings.cloudflare_worker_url.rstrip("/") + "/transcribe"
+    with open(path, "rb") as audio, httpx.Client(timeout=settings.stt_remote_timeout_seconds) as client:
+        response = client.post(
+            url,
+            headers={
+                "Authorization": f"Bearer {settings.cloudflare_worker_token}",
+                "Content-Type": content_type,
+                "X-Initial-Prompt-B64": encoded_prompt,
+            },
+            content=audio.read(),
+        )
+    try:
+        response.raise_for_status()
+        payload = response.json()
+    except (httpx.HTTPError, TypeError, ValueError) as exc:
+        detail = response.text[:300] if response is not None else ""
+        raise CloudSTTError(f"Cloudflare transcription failed: {detail}") from exc
+
+    words = []
+    raw_words = payload.get("words") or []
+    info = payload.get("transcription_info") or {}
+    if isinstance(info, list):
+        info = info[0] if info else {}
+    if not raw_words and isinstance(info, dict):
+        raw_words = info.get("words") or []
+    if not raw_words:
+        raw_words = [
+            word
+            for segment in (payload.get("segments") or [])
+            if isinstance(segment, dict)
+            for word in (segment.get("words") or [])
+            if isinstance(word, dict)
+        ]
+    for word in raw_words:
+        words.append({
+            "word": word.get("word", ""),
+            "start": word.get("start", 0.0),
+            "end": word.get("end", 0.0),
+            # Workers AI does not expose calibrated per-word confidence.
+            "probability": None,
+        })
+
+    raw_segments = payload.get("segments") or []
+    segments = [{
+        "start": segment.get("start", 0.0),
+        "end": segment.get("end", 0.0),
+        "avg_logprob": segment.get("avg_logprob"),
+        "no_speech_prob": segment.get("no_speech_prob"),
+        "compression_ratio": segment.get("compression_ratio"),
+    } for segment in raw_segments if isinstance(segment, dict)]
+    if not segments:
+        duration = info.get("duration", 0.0) if isinstance(info, dict) else 0.0
+        if words:
+            duration = max(float(words[-1].get("end") or 0.0), float(duration or 0.0))
+        segments = [{"start": 0.0, "end": duration or 0.0}]
+
+    return {
+        "text": payload.get("text") or "",
+        "words": words,
+        "segments": segments,
+        # No provider confidence is fabricated; recognition.py derives a
+        # conservative score from segment evidence and ensemble agreement.
+        "provider_confidence": None,
+        "provider": "cloudflare",
+        "model": payload.get("model") or settings.cloudflare_stt_model,
+        "language_code": info.get("language") if isinstance(info, dict) else None,
+        "language_probability": _bounded_probability(
+            info.get("language_probability") if isinstance(info, dict) else None
+        ),
+        "request_id": response.headers.get("cf-ray"),
+    }
 
 
 def transcribe_deepgram(audio_path, *, keyterms=None) -> dict:

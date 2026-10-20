@@ -16,7 +16,11 @@ from difflib import SequenceMatcher
 
 from app.core.config import settings
 from app.integrations.audio.processor import normalize_audio_to_wav
-from app.integrations.stt.cloud import transcribe_deepgram, transcribe_elevenlabs
+from app.integrations.stt.cloud import (
+    transcribe_cloudflare,
+    transcribe_deepgram,
+    transcribe_elevenlabs,
+)
 
 _model = None
 _model_error = None
@@ -91,6 +95,9 @@ def provider_readiness() -> dict:
         ready, model = bool(settings.deepgram_api_key), settings.deepgram_stt_model
     elif provider == "elevenlabs":
         ready, model = bool(settings.elevenlabs_api_key), settings.elevenlabs_stt_model
+    elif provider == "cloudflare":
+        ready = bool(settings.cloudflare_worker_url and settings.cloudflare_worker_token)
+        model = settings.cloudflare_stt_model
     elif provider == "ensemble":
         configured = _available_ensemble_providers()
         ready = len(configured) >= settings.stt_ensemble_min_providers
@@ -391,12 +398,17 @@ def transcribe_elevenlabs_cloud(audio_path, *, keyterms=None) -> dict:
     return _enrich_cloud(transcribe_elevenlabs(audio_path, keyterms=keyterms))
 
 
+def transcribe_cloudflare_workers(audio_path, *, keyterms=None) -> dict:
+    return _enrich_cloud(transcribe_cloudflare(audio_path, keyterms=keyterms))
+
+
 def _available_ensemble_providers() -> list[str]:
     availability = {
         "selfhost": True,
         "groq": bool(settings.groq_api_key),
         "deepgram": bool(settings.deepgram_api_key),
         "elevenlabs": bool(settings.elevenlabs_api_key),
+        "cloudflare": bool(settings.cloudflare_worker_url and settings.cloudflare_worker_token),
     }
     return [provider for provider in settings.stt_ensemble_provider_list if availability[provider]]
 
@@ -407,6 +419,7 @@ def _provider_transcribe(provider, audio_path, keyterms):
         "groq": transcribe_groq,
         "deepgram": transcribe_deepgram_cloud,
         "elevenlabs": transcribe_elevenlabs_cloud,
+        "cloudflare": transcribe_cloudflare_workers,
     }
     started = time.perf_counter()
     result = functions[provider](audio_path, **({"keyterms": keyterms} if keyterms else {}))
@@ -519,6 +532,8 @@ def _transcribe(audio_path, *, keyterms=None) -> dict:
         return transcribe_deepgram_cloud(audio_path, **kwargs)
     if provider == "elevenlabs":
         return transcribe_elevenlabs_cloud(audio_path, **kwargs)
+    if provider == "cloudflare":
+        return transcribe_cloudflare_workers(audio_path, **kwargs)
     if provider == "ensemble":
         return transcribe_ensemble(audio_path, **kwargs)
     if provider != "auto":

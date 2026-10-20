@@ -42,6 +42,8 @@ curl_out.txt
 .env.*
 !.env.example
 .oci-private/
+deploy/cloudflare-stt/.dev.vars
+deploy/cloudflare-stt/.wrangler/
 deploy/oracle/state.json
 deploy/oracle/.env.runtime
 *.pem

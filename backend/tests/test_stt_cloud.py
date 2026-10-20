@@ -1,3 +1,5 @@
+import base64
+
 import httpx
 import pytest
 
@@ -44,6 +46,43 @@ def test_deepgram_adapter_preserves_word_confidence_and_repeated_keyterms(monkey
     assert result["words"][-1]["word"] == "Quảng Trị."
     params = captured["request"]["params"]
     assert ("keyterm", "Quảng Trị") in params and ("keyterm", "Đà Nẵng") in params
+
+
+def test_cloudflare_adapter_sends_context_and_preserves_timestamps(monkeypatch, tmp_path):
+    payload = {
+        "text": "I am studying in Đà Nẵng.",
+        "model": "@cf/openai/whisper-large-v3-turbo",
+        "transcription_info": {
+            "language": "en", "language_probability": .97, "duration": 1.2,
+        },
+        "segments": [{
+            "start": .3, "end": 1.2, "avg_logprob": -.2,
+            "no_speech_prob": .01, "compression_ratio": 1.0,
+            "words": [
+                {"word": "studying", "start": .3, "end": .7},
+                {"word": "Đà Nẵng", "start": .8, "end": 1.2},
+            ],
+        }],
+    }
+    captured = {}
+    monkeypatch.setattr(cloud.settings, "cloudflare_worker_url", "https://stt.example.workers.dev/")
+    monkeypatch.setattr(cloud.settings, "cloudflare_worker_token", "worker-secret")
+    monkeypatch.setattr(cloud.httpx, "Client", lambda **kwargs: FakeClient(payload, captured, **kwargs))
+    audio = tmp_path / "answer.webm"
+    audio.write_bytes(b"audio")
+
+    result = cloud.transcribe_cloudflare(audio, keyterms=["Đà Nẵng", "Quảng Trị"])
+
+    assert result["provider"] == "cloudflare"
+    assert result["text"] == "I am studying in Đà Nẵng."
+    assert result["words"][-1]["word"] == "Đà Nẵng"
+    assert result["provider_confidence"] is None
+    assert result["segments"][0]["avg_logprob"] == pytest.approx(-.2)
+    assert captured["url"] == "https://stt.example.workers.dev/transcribe"
+    headers = captured["request"]["headers"]
+    assert headers["Authorization"] == "Bearer worker-secret"
+    prompt = base64.b64decode(headers["X-Initial-Prompt-B64"]).decode("utf-8")
+    assert "Đà Nẵng" in prompt
 
 
 def test_elevenlabs_adapter_keeps_verbatim_mode_and_skips_spacing(monkeypatch, tmp_path):

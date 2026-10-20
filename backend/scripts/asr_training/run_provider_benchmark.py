@@ -7,6 +7,7 @@ from pathlib import Path
 
 from app.integrations.audio.processor import probe_audio_duration
 from app.integrations.stt.recognition import (
+    transcribe_cloudflare_workers,
     transcribe_deepgram_cloud,
     transcribe_elevenlabs_cloud,
     transcribe_groq,
@@ -15,6 +16,7 @@ from app.integrations.stt.recognition import (
 
 
 PROVIDERS = {
+    "cloudflare": transcribe_cloudflare_workers,
     "selfhost": transcribe_selfhost,
     "groq": transcribe_groq,
     "deepgram": transcribe_deepgram_cloud,

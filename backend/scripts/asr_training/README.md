@@ -58,7 +58,7 @@ output independently:
 ```sh
 python scripts/asr_training/run_provider_benchmark.py manifest.jsonl \
   --output-dir benchmark-output \
-  --providers selfhost,deepgram,elevenlabs
+  --providers selfhost,cloudflare,deepgram,elevenlabs
 python scripts/asr_training/evaluate_asr.py benchmark-output/deepgram.jsonl
 ```
 
