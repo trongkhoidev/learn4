@@ -9,13 +9,11 @@ import ScoreGrid from '../components/ScoreGrid.jsx';
 import SpeakButton from '../components/SpeakButton.jsx';
 import FeedbackFocusCard from '../components/FeedbackFocusCard.jsx';
 import GrammarErrorList from '../components/GrammarErrorList.jsx';
-import RecognitionContextField from '../components/RecognitionContextField.jsx';
 
 export default function SpeakingMockTest() {
   const { testId } = useParams();
   const studentName = localStorage.getItem('speaking_name') || 'Guest';
   const {
-    recognitionContext, setRecognitionContext,
     questions, session, turnIndex, isEvaluating, error, mockResult, prepStarted,
     startPreparation, prepRemaining, current, part, totalTurns, progress, handleRecordingComplete,
   } = useMockController(testId, studentName);
@@ -147,7 +145,6 @@ export default function SpeakingMockTest() {
             </div>
           )}
 
-          <RecognitionContextField value={recognitionContext} onChange={setRecognitionContext} disabled={isEvaluating} />
           {recorderReady && <AudioRecorderPro key={current.id} onRecordingComplete={handleRecordingComplete} disabled={isEvaluating} maxSeconds={part === 2 ? 120 : 90} />}
           {isEvaluating && <div role="status" className="mt-4 flex items-center gap-3 rounded-xl bg-blue-50 p-3 text-sm font-semibold text-blue-900"><span className="h-5 w-5 animate-spin rounded-full border-2 border-blue-200 border-t-blue-700" />Đang xử lý câu trả lời…</div>}
           <p className="mt-4 text-xs leading-5 text-slate-500">Bạn có thể nghe lại bản ghi trước khi nộp. Câu tiếp theo sẽ mở sau khi câu hiện tại được lưu.</p>

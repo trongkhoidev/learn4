@@ -7,7 +7,6 @@ import GrammarErrorList from '../components/GrammarErrorList.jsx';
 import PronunErrorList from '../components/PronunErrorList.jsx';
 import FeedbackFocusCard from '../components/FeedbackFocusCard.jsx';
 import SpeakButton from '../components/SpeakButton.jsx';
-import RecognitionContextField from '../components/RecognitionContextField.jsx';
 import AssessmentQualityCard from '../components/AssessmentQualityCard.jsx';
 import {
   AlertCircle, ArrowLeft, ArrowRight, BookOpen, CheckCircle2, ChevronLeft,
@@ -18,7 +17,7 @@ import { Link, useParams } from 'react-router-dom';
 export default function SpeakingPractice() {
   const { topicId: routeTopicId } = useParams();
   const {
-    recognitionContext, setRecognitionContext, saveReviewDecision,
+    saveReviewDecision,
     step, setStep, topics, selectedTopic, setSelectedTopic, selectedPart, setSelectedPart,
     isEvaluating, result, setResult, questions, questionsLoading, questionIndex, setQuestionIndex, error,
     setError, prepStarted, startPreparation, resetPreparation, prepRemaining, recordingUrl,
@@ -255,8 +254,6 @@ export default function SpeakingPractice() {
                   )}
                 </div>
               )}
-
-              <RecognitionContextField value={recognitionContext} onChange={setRecognitionContext} disabled={isEvaluating} />
 
               {recorderReady && (
                 <AudioRecorderPro
