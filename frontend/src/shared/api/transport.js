@@ -6,7 +6,9 @@ function teacherHeaders() {
 }
 
 export async function request(method, path, { json, form, teacher, signal } = {}) {
-  const headers = {};
+  const headers = {
+    "ngrok-skip-browser-warning": "true",
+  };
   if (teacher) Object.assign(headers, teacherHeaders());
 
   let body;
