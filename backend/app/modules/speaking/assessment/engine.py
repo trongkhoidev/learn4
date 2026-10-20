@@ -9,6 +9,7 @@ from app.integrations.audio.processor import probe_audio_duration
 from app.modules.speaking.pronunciation import acoustic, service as pronunciation_service
 from app.modules.speaking.assessment import raters
 from .transcript_review import parse_keyterms, review_transcript
+from .quality import build_assessment_quality
 from app.operations import budget
 from .rubric import RUBRIC_SOURCE, RUBRIC_VERSION
 
@@ -149,6 +150,8 @@ def _result(status, *, transcript="", noise=None, relevant=None, criteria=None, 
     }
     provenance = {
         "asr_provider": (stt or {}).get("provider"),
+        "asr_selected_provider": (stt or {}).get("selected_provider", (stt or {}).get("provider")),
+        "asr_providers_succeeded": (stt or {}).get("providers_succeeded", []),
         "asr_model": (stt or {}).get("model"),
         "decode_profile": (stt or {}).get("decode_profile", settings.stt_profile_version),
         "asr_fallback_used": (stt or {}).get("fallback_used", False),
@@ -186,9 +189,14 @@ def _result(status, *, transcript="", noise=None, relevant=None, criteria=None, 
             "calibrated": False,
             "provider": (stt or {}).get("provider"),
             "model": (stt or {}).get("model"),
+            "selected_provider": (stt or {}).get("selected_provider", (stt or {}).get("provider")),
+            "provider_agreement": (stt or {}).get("ensemble_agreement", (stt or {}).get("decode_agreement")),
+            "provider_hypotheses": (stt or {}).get("provider_hypotheses", []),
+            "provider_errors": (stt or {}).get("provider_errors", {}),
         },
         "provenance": provenance,
         "assessment_meta": _assessment_meta(stt, raters),
+        "assessment_quality": build_assessment_quality(stt, words, uncertain, output_criteria),
         **({"error": error} if error else {}),
     }
     from app.modules.speaking.schemas import SpeakingAssessmentResult

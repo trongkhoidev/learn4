@@ -67,7 +67,7 @@ alone. A single practice answer supports a local diagnostic estimate, not claims
 about performance across unseen topics or the whole IELTS test.
 Keep feedback concise and specific: feedback_vi at most two short Vietnamese
 sentences; band_reason_vi one sentence; next_band_gap_vi one sentence; at most
-two prioritized observations (one strength and one issue only when supported).
+three prioritized observations (no more than one strength and two issues).
 Each explanation_vi is one short sentence. next_action_vi is one short drill
 with an adapted example and a success check. Do not repeat the same explanation
 in the summary, observations and practice action. No long rewritten model answer
@@ -78,7 +78,7 @@ Return examiner_review for every scored result:
 - next_band_gap_vi: explain the specific descriptor feature not yet demonstrated
   consistently for the next higher band. At band 9 describe how to sustain control.
   Distinguish an observed weakness from a feature the short sample cannot establish.
-- observations: 1-2 prioritized, specific findings. Each contains an exact,
+- observations: 1-3 prioritized, specific findings. Each contains an exact,
   contiguous quote from ONE turn, word_ids, kind, explanation_vi, and suggestion
   (null when no correction is appropriate). Use strength only for demonstrated
   success, limitation for a supported pattern, error for an objective language
@@ -103,7 +103,12 @@ threshold. Do not infer hesitation causes, stress or natural rhythm from text.
 A short Part 1 answer can be appropriate; do not use sentence/word-count caps.
 Do not critique grammar or vocabulary in this criterion. Identify the single
 most useful development or cohesion change, with a brief example from this answer.
-Relevance is a coaching flag, not an automatic language-score deduction.""",
+Relevance is a coaching flag, not an automatic language-score deduction.
+Review continuity, meaningful pauses, repetition, self-repair, sequencing,
+referencing, conjunction use, response development and whether ideas remain easy
+to follow. Distinguish a purposeful pause or self-correction from repeated loss
+of flow. Do not treat every filler, repetition or pause as a weakness, and do not
+reward mechanical linking phrases when the relationship between ideas is unclear.""",
     "lexical_resource": """
 Assess precision, flexibility, collocation and paraphrase in context. Topic
 nouns repeated twice do not automatically imply limited range; jargon or idioms
@@ -111,7 +116,12 @@ alone do not prove a high band. Do not force rare vocabulary. Use an error
 observation only for a demonstrably wrong meaning/collocation; a more natural
 valid alternative is optional_improvement. Do not penalize proper names or
 Vietnamese spelling, and never infer a mistaken place/person from expectations.
-Do not assess tenses or agreement here. Give a minimal, useful replacement.""",
+Do not assess tenses or agreement here. Give a minimal, useful replacement.
+Review precision, collocation, paraphrase, topic range, word formation, register,
+idiomatic control and the learner's ability to express a meaning when an exact
+word is unavailable. Repetition matters only when it shows limited flexibility
+across the available sample. Do not reward memorized-sounding rare expressions,
+and do not label a valid regional or conversational expression as an error.""",
     "grammatical_range_accuracy": """
 Assess both range and control, including effective simple and complex clauses.
 Coordination is not subordination; passive voice alone does not make a sentence
@@ -122,7 +132,13 @@ and a short Vietnamese explanation. Prioritize patterns affecting clarity.
 Contractions, natural fillers, conversational ellipsis, self-corrected starts
 and ASR punctuation are not errors. Establish tense and number from context;
 never assume an unclear ending was a learner error. Valid but less elegant
-phrasing is optional_improvement. Never repair proper names as grammar.""",
+phrasing is optional_improvement. Never repair proper names as grammar.
+Review clause variety and control, tense/aspect, agreement, articles, countability,
+pronouns, prepositions, word order, relative and conditional structures, fragments
+and run-ons. Group repeated manifestations of one pattern instead of inflating the
+error count. Spoken punctuation is unavailable: do not diagnose comma splices or
+sentence boundaries from ASR punctuation alone. Judge whether errors are isolated,
+recurrent or communication-affecting across the reliable sample.""",
 }
 
 _SYSTEM = {

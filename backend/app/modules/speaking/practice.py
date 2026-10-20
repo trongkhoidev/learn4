@@ -45,7 +45,7 @@ async def submit_practice(
     question_text: Optional[str] = Form(None),
     part_type: Optional[str] = Form(None),
     async_processing: bool = Form(settings.speaking_async_default),
-    recognition_context: str = Form("", max_length=400),
+    recognition_context: str = Form("", max_length=1200),
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
 ):

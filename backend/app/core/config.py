@@ -34,6 +34,11 @@ class Settings(BaseSettings):
     llm_provider: str = "groq" # 'groq', 'gemini', or 'mock'
     gemini_model: str = "gemini-3.5-flash-lite"
 
+    deepgram_api_key: str = ""
+    deepgram_stt_model: str = "nova-3"
+    elevenlabs_api_key: str = ""
+    elevenlabs_stt_model: str = "scribe_v2"
+
     tier_exam: str = "70b,70b,70b"
     tier_practice: str = "70b,70b,70b"
     tier_budget: str = "8b,8b,8b"
@@ -43,7 +48,13 @@ class Settings(BaseSettings):
     whisper_compute_type: str = "int8"
     whisper_preload: bool = False
     whisper_cpu_threads: int = Field(default=4, ge=1)
-    stt_provider: Literal["selfhost", "groq", "auto", "mock"] = "selfhost"
+    stt_provider: Literal[
+        "selfhost", "groq", "deepgram", "elevenlabs", "ensemble", "auto", "mock",
+    ] = "selfhost"
+    # Ordered tie-break priority for the transcript medoid. Providers without
+    # credentials are skipped, so this can be enabled before every key is set.
+    stt_ensemble_providers: str = "deepgram,elevenlabs,selfhost"
+    stt_ensemble_min_providers: int = Field(default=2, ge=1, le=4)
     stt_local_wait_seconds: float = Field(default=30.0, ge=0, allow_inf_nan=False)
     stt_remote_timeout_seconds: float = Field(default=60.0, gt=0, allow_inf_nan=False)
     audio_process_timeout_seconds: float = Field(default=60.0, gt=0, allow_inf_nan=False)
@@ -55,8 +66,8 @@ class Settings(BaseSettings):
     speaking_job_max_attempts: int = 2
     speaking_job_poll_seconds: float = 0.5
     speaking_async_default: bool = False
-    scoring_version: str = "ielts-examiner-feedback-v3"
-    stt_profile_version: str = "whisper-en-v2"
+    scoring_version: str = "ielts-evidence-ensemble-v4"
+    stt_profile_version: str = "multi-asr-en-v1"
     calibration_version: str = "uncalibrated"
     # Conservative review gates; these are heuristic triggers, not probabilities.
     speaking_review_hallucination_threshold: float = 0.75
@@ -85,6 +96,15 @@ class Settings(BaseSettings):
             "practice": parse(self.tier_practice),
             "budget": parse(self.tier_budget),
         }
+
+    @property
+    def stt_ensemble_provider_list(self) -> list[str]:
+        allowed = {"selfhost", "groq", "deepgram", "elevenlabs"}
+        return list(dict.fromkeys(
+            provider.strip().lower()
+            for provider in self.stt_ensemble_providers.split(",")
+            if provider.strip().lower() in allowed
+        ))
 
 
 @lru_cache

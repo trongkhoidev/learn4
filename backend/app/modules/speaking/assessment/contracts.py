@@ -36,7 +36,7 @@ class ExaminerReview(BaseModel):
 
     band_reason_vi: str = Field(min_length=1, max_length=500)
     next_band_gap_vi: str = Field(min_length=1, max_length=360)
-    observations: list[ExaminerObservation] = Field(min_length=1, max_length=2)
+    observations: list[ExaminerObservation] = Field(min_length=1, max_length=3)
 
 
 class CriterionRaterResult(BaseModel):

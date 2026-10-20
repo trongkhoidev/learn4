@@ -255,6 +255,7 @@ class SpeakingAssessmentResult(BaseModel):
     transcription: Dict[str, Any] = Field(default_factory=dict)
     provenance: Dict[str, Any] = Field(default_factory=dict)
     assessment_meta: AssessmentMeta = Field(default_factory=AssessmentMeta)
+    assessment_quality: Dict[str, Any] = Field(default_factory=dict)
     error: Optional[str] = None
 
 

@@ -8,6 +8,7 @@ import PronunErrorList from '../components/PronunErrorList.jsx';
 import FeedbackFocusCard from '../components/FeedbackFocusCard.jsx';
 import SpeakButton from '../components/SpeakButton.jsx';
 import RecognitionContextField from '../components/RecognitionContextField.jsx';
+import AssessmentQualityCard from '../components/AssessmentQualityCard.jsx';
 import {
   AlertCircle, ArrowLeft, ArrowRight, BookOpen, CheckCircle2, ChevronLeft,
   ChevronRight, Clock3, Mic2, Sparkles,
@@ -296,6 +297,7 @@ export default function SpeakingPractice() {
           </header>
 
           <ScoreGrid scores={result.scores} />
+          <AssessmentQualityCard quality={result.raw.assessment_quality} />
 
           {result.raw.status !== 'scored' && (
             <div className="flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 text-amber-950">

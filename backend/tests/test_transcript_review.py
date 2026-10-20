@@ -36,7 +36,7 @@ def test_unknown_place_cannot_be_replaced_from_context_alone(monkeypatch):
     }]}
     with patch.object(review, 'provider_complete', return_value=json.dumps(response)):
         result = review.review_transcript('Where?', words('Ghana'), [], [], [])
-    assert result['status'] == 'unavailable'
+    assert result['status'] == 'ready'
     assert result['suggestions'] == []
 
 
@@ -47,7 +47,46 @@ def test_proposal_cannot_fabricate_or_reorder_source_words(monkeypatch):
         'reason_vi': 'Không hợp lệ.', 'kind': 'possible_mishearing', 'source': 'context_only',
     }]}
     with patch.object(review, 'provider_complete', return_value=json.dumps(response)):
-        assert review.review_transcript('Q', words('I love Ghana'), [], [], [])['status'] == 'unavailable'
+        assert review.review_transcript('Q', words('I love Ghana'), [], [], [])['suggestions'] == []
+
+
+def test_alternate_decode_replacement_must_align_to_the_same_source_span(monkeypatch):
+    monkeypatch.setattr(settings, 'llm_provider', 'gemini')
+    response = {'suggestions': [{
+        'quote': 'still', 'word_ids': ['w4'], 'replacement': 'studying',
+        'reason_vi': 'Engine thứ hai nghe thành studying; cần nghe lại để xác nhận.',
+        'kind': 'possible_mishearing', 'source': 'alternate_decode',
+    }]}
+    source = words('I am currently still in Da Nang')
+    with patch.object(review, 'provider_complete', return_value=json.dumps(response)):
+        accepted = review.review_transcript(
+            'Where do you live?', source, [], [],
+            ['I am currently still in Da Nang', 'I am currently studying in Ghana'],
+        )
+        rejected = review.review_transcript(
+            'Where do you live?', source, [], [],
+            ['I am currently still in Da Nang', 'Studying is useful but I am still in Ghana'],
+        )
+    assert accepted['suggestions'][0]['replacement'] == 'studying'
+    assert rejected['suggestions'] == []
+
+
+def test_keyterms_are_deduplicated_bounded_and_sanitized():
+    value = 'Quảng Trị, Quảng Trị; Đà Nẵng\n<script>, one two three four five six'
+    assert review.parse_keyterms(value) == ['Quảng Trị', 'Đà Nẵng']
+
+
+def test_one_supplied_place_name_cannot_be_replaced_with_another(monkeypatch):
+    monkeypatch.setattr(settings, 'llm_provider', 'gemini')
+    response = {'suggestions': [{
+        'quote': 'Đà Nẵng', 'word_ids': ['w4', 'w5'], 'replacement': 'Quảng Trị',
+        'reason_vi': 'Đoán một địa danh khác.', 'kind': 'proper_name', 'source': 'provided_term',
+    }]}
+    with patch.object(review, 'provider_complete', return_value=json.dumps(response)):
+        result = review.review_transcript(
+            'Where?', words('I live in Đà Nẵng'), [], ['Đà Nẵng', 'Quảng Trị'], [],
+        )
+    assert result['suggestions'] == []
 
 
 def test_configuration_uses_one_root_env_from_any_working_directory(tmp_path, monkeypatch):

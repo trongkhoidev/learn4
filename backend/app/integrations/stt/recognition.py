@@ -11,10 +11,12 @@ import os
 import re
 import threading
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from difflib import SequenceMatcher
 
 from app.core.config import settings
 from app.integrations.audio.processor import normalize_audio_to_wav
+from app.integrations.stt.cloud import transcribe_deepgram, transcribe_elevenlabs
 
 _model = None
 _model_error = None
@@ -85,6 +87,14 @@ def provider_readiness() -> dict:
         ready, model = True, settings.whisper_model
     elif provider == "groq":
         ready, model = bool(settings.groq_api_key), settings.groq_stt_model
+    elif provider == "deepgram":
+        ready, model = bool(settings.deepgram_api_key), settings.deepgram_stt_model
+    elif provider == "elevenlabs":
+        ready, model = bool(settings.elevenlabs_api_key), settings.elevenlabs_stt_model
+    elif provider == "ensemble":
+        configured = _available_ensemble_providers()
+        ready = len(configured) >= settings.stt_ensemble_min_providers
+        model = "+".join(configured) if configured else None
     elif provider == "auto":
         ready, model = True, settings.whisper_model
     else:
@@ -219,8 +229,14 @@ def _enrich(
     provider=None,
     model=None,
     fallback_used=False,
+    confidence_override=None,
+    missing_metrics_override=None,
 ) -> dict:
     confidence, hallucination, missing = _recognition_signals(segments)
+    if confidence_override is not None:
+        confidence = max(0.0, min(1.0, float(confidence_override)))
+        hallucination = 0.0
+        missing = list(missing_metrics_override or [])
     agreement = max(0.0, min(1.0, float(agreement)))
     if agreement < 0.70:
         confidence = min(confidence, 0.50)
@@ -230,20 +246,21 @@ def _enrich(
         def token_key(token):
             return re.sub(r"[^\w']", "", token.casefold())
         first_tokens = [token_key(word.get("word", "")) for word in words]
-        second_tokens = [token_key(token) for token in nbest_texts[1].split()]
         existing = {span["word_index"] for span in uncertain}
-        for tag, start, end, _j, _k in SequenceMatcher(None, first_tokens, second_tokens).get_opcodes():
-            if tag not in {"replace", "delete"}:
-                continue
-            for index in range(start, end):
-                if index not in existing:
-                    word = words[index]
-                    uncertain.append({
-                        "word": word["word"], "start": word.get("start"), "end": word.get("end"),
-                        "word_index": index, "confidence": word.get("probability"),
-                        "reason": "decode_disagreement",
-                    })
-                    existing.add(index)
+        for alternative in nbest_texts[1:]:
+            alternative_tokens = [token_key(token) for token in alternative.split()]
+            for tag, start, end, _j, _k in SequenceMatcher(None, first_tokens, alternative_tokens).get_opcodes():
+                if tag not in {"replace", "delete"}:
+                    continue
+                for index in range(start, end):
+                    if index not in existing:
+                        word = words[index]
+                        uncertain.append({
+                            "word": word["word"], "start": word.get("start"), "end": word.get("end"),
+                            "word_index": index, "confidence": word.get("probability"),
+                            "reason": "decode_disagreement",
+                        })
+                        existing.add(index)
     return {
         "text": text, "words": words, "segments": segments,
         "asr_confidence": round(confidence, 3),
@@ -342,6 +359,116 @@ def transcribe_groq(audio_path, *, keyterms=None) -> dict:
     )
 
 
+def _enrich_cloud(raw: dict) -> dict:
+    return _enrich(
+        raw.get("text") or "", raw.get("words") or [], raw.get("segments") or [],
+        provider=raw.get("provider"), model=raw.get("model"),
+        confidence_override=raw.get("provider_confidence"), missing_metrics_override=[],
+    ) | {key: value for key, value in raw.items() if key not in {"text", "words", "segments"}}
+
+
+def transcribe_deepgram_cloud(audio_path, *, keyterms=None) -> dict:
+    return _enrich_cloud(transcribe_deepgram(audio_path, keyterms=keyterms))
+
+
+def transcribe_elevenlabs_cloud(audio_path, *, keyterms=None) -> dict:
+    return _enrich_cloud(transcribe_elevenlabs(audio_path, keyterms=keyterms))
+
+
+def _available_ensemble_providers() -> list[str]:
+    availability = {
+        "selfhost": True,
+        "groq": bool(settings.groq_api_key),
+        "deepgram": bool(settings.deepgram_api_key),
+        "elevenlabs": bool(settings.elevenlabs_api_key),
+    }
+    return [provider for provider in settings.stt_ensemble_provider_list if availability[provider]]
+
+
+def _provider_transcribe(provider, audio_path, keyterms):
+    functions = {
+        "selfhost": transcribe_selfhost,
+        "groq": transcribe_groq,
+        "deepgram": transcribe_deepgram_cloud,
+        "elevenlabs": transcribe_elevenlabs_cloud,
+    }
+    started = time.perf_counter()
+    result = functions[provider](audio_path, **({"keyterms": keyterms} if keyterms else {}))
+    result["latency_ms"] = round((time.perf_counter() - started) * 1000, 2)
+    return result
+
+
+def _select_transcript_medoid(results: list[dict], priority: list[str]) -> tuple[dict, float]:
+    """Choose the hypothesis with greatest text agreement, never raw cross-provider confidence."""
+    if len(results) == 1:
+        return results[0], 1.0
+    scores = []
+    for candidate in results:
+        agreements = [
+            _decode_agreement(candidate.get("text", ""), other.get("text", ""))
+            for other in results if other is not candidate
+        ]
+        scores.append(sum(agreements) / len(agreements))
+    priority_index = {provider: index for index, provider in enumerate(priority)}
+    winner_index = max(
+        range(len(results)),
+        key=lambda index: (scores[index], -priority_index.get(results[index].get("provider"), 999)),
+    )
+    return results[winner_index], round(scores[winner_index], 3)
+
+
+def transcribe_ensemble(audio_path, *, keyterms=None) -> dict:
+    providers = _available_ensemble_providers()
+    if len(providers) < settings.stt_ensemble_min_providers:
+        raise RuntimeError(
+            f"STT ensemble needs {settings.stt_ensemble_min_providers} configured providers; "
+            f"available: {', '.join(providers) or 'none'}"
+        )
+    results, errors = [], {}
+    with ThreadPoolExecutor(max_workers=len(providers)) as executor:
+        pending = {
+            executor.submit(_provider_transcribe, provider, audio_path, keyterms): provider
+            for provider in providers
+        }
+        for future in as_completed(pending):
+            provider = pending[future]
+            try:
+                results.append(future.result())
+            except Exception as exc:
+                errors[provider] = type(exc).__name__
+    if not results:
+        raise RuntimeError(f"All STT ensemble providers failed: {errors}")
+    selected, agreement = _select_transcript_medoid(results, providers)
+    ordered = sorted(results, key=lambda item: providers.index(item["provider"]))
+    hypotheses = [{
+        "provider": item.get("provider"), "model": item.get("model"),
+        "text": item.get("text", ""), "asr_confidence": item.get("asr_confidence"),
+        "latency_ms": item.get("latency_ms"),
+    } for item in ordered]
+    alternatives = list(dict.fromkeys(
+        [selected.get("text", "")]
+        + [item.get("text", "") for item in ordered if item is not selected]
+        + list(selected.get("nbest_texts") or [])
+    ))
+    result = _enrich(
+        selected.get("text", ""), selected.get("words") or [], selected.get("segments") or [],
+        nbest_texts=alternatives, agreement=agreement,
+        provider="ensemble", model="+".join(item["provider"] for item in ordered),
+        confidence_override=selected.get("asr_confidence"),
+        missing_metrics_override=selected.get("missing_metrics") or [],
+        fallback_used=bool(errors),
+    )
+    result.update({
+        "selected_provider": selected.get("provider"),
+        "provider_hypotheses": hypotheses,
+        "provider_errors": errors,
+        "providers_attempted": providers,
+        "providers_succeeded": [item["provider"] for item in ordered],
+        "ensemble_agreement": agreement,
+    })
+    return result
+
+
 def transcribe_mock(audio_path) -> dict:
     text = "This is a mock transcript for testing with enough words to produce a diagnostic score."
     tokens = text.split()
@@ -372,6 +499,12 @@ def _transcribe(audio_path, *, keyterms=None) -> dict:
         return transcribe_selfhost(audio_path, **kwargs)
     if provider == "groq":
         return transcribe_groq(audio_path, **kwargs)
+    if provider == "deepgram":
+        return transcribe_deepgram_cloud(audio_path, **kwargs)
+    if provider == "elevenlabs":
+        return transcribe_elevenlabs_cloud(audio_path, **kwargs)
+    if provider == "ensemble":
+        return transcribe_ensemble(audio_path, **kwargs)
     if provider != "auto":
         raise ValueError("Unsupported STT provider")
     try:

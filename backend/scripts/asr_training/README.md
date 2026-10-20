@@ -51,3 +51,17 @@ slices remain visible.
 No checkpoint may replace the baseline from WER alone. Review verbatim error
 preservation, silence hallucination, slice coverage, latency/RTF, and costs under
 the separately frozen release gates in the Speaking accuracy plan.
+
+Generate comparable predictions from every configured engine, then evaluate each
+output independently:
+
+```sh
+python scripts/asr_training/run_provider_benchmark.py manifest.jsonl \
+  --output-dir benchmark-output \
+  --providers selfhost,deepgram,elevenlabs
+python scripts/asr_training/evaluate_asr.py benchmark-output/deepgram.jsonl
+```
+
+Run all providers on the exact same frozen test split. Provider failures remain
+as empty predictions and are visible in WER; the runner never silently falls
+back to a different engine.
