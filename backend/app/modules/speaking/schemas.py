@@ -256,6 +256,8 @@ class SpeakingAssessmentResult(BaseModel):
     provenance: Dict[str, Any] = Field(default_factory=dict)
     assessment_meta: AssessmentMeta = Field(default_factory=AssessmentMeta)
     assessment_quality: Dict[str, Any] = Field(default_factory=dict)
+    model_answer: Optional[str] = None
+    upgrader: Optional[Dict[str, Any]] = None
     error: Optional[str] = None
 
 

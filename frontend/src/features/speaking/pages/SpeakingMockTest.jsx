@@ -46,7 +46,7 @@ export default function SpeakingMockTest() {
           <span className="grid h-12 w-12 place-items-center rounded-2xl bg-emerald-400/15 text-emerald-200"><CheckCircle2 size={24} /></span>
           <p className="mt-5 text-xs font-bold uppercase tracking-[.16em] text-blue-200">Mock Test · {questions.topic.name}</p>
           <h1 className="mt-2 text-3xl font-extrabold tracking-tight sm:text-4xl">Hoàn Thành Mock Test</h1>
-          <p className="mt-3 max-w-2xl text-sm leading-6 text-blue-100/75">Đánh giá gộp evidence từ cả ba Part. Tiêu chí chưa đủ bằng chứng sẽ không có band.</p>
+          <p className="mt-3 max-w-2xl text-sm leading-6 text-blue-100/75">Đánh giá tổng hợp toàn diện cả ba Part theo tiêu chuẩn IELTS Speaking Band Descriptors.</p>
         </div>
         <ScoreGrid scores={mockResult} />
         <section aria-label="Phản hồi theo tiêu chí" className="grid gap-4 md:grid-cols-2">

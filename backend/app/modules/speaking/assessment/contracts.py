@@ -43,7 +43,7 @@ class CriterionRaterResult(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     criterion: Literal[
-        "fluency_coherence", "lexical_resource", "grammatical_range_accuracy",
+        "fluency_coherence", "lexical_resource", "grammatical_range_accuracy", "pronunciation",
     ]
     status: Literal["scored", "insufficient_evidence", "needs_review", "failed"]
     band: float | None = None

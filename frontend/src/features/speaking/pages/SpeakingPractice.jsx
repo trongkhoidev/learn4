@@ -8,6 +8,7 @@ import PronunErrorList from '../components/PronunErrorList.jsx';
 import FeedbackFocusCard from '../components/FeedbackFocusCard.jsx';
 import SpeakButton from '../components/SpeakButton.jsx';
 import AssessmentQualityCard from '../components/AssessmentQualityCard.jsx';
+import ModelAnswerCard from '../components/ModelAnswerCard.jsx';
 import {
   AlertCircle, ArrowLeft, ArrowRight, BookOpen, CheckCircle2, ChevronLeft,
   ChevronRight, Clock3, Mic2, Sparkles,
@@ -288,15 +289,16 @@ export default function SpeakingPractice() {
               <h1 className="text-3xl font-extrabold tracking-tight text-slate-950">Kết Quả Phân Tích</h1>
               <p className="mt-2 text-sm text-slate-500">{selectedTopic?.name} <span className="mx-1 text-slate-300">/</span> {selectedPart}</p>
             </div>
-            <span className={`w-fit rounded-full px-3.5 py-2 text-xs font-bold ${result.raw.status === 'scored' ? 'bg-emerald-50 text-emerald-800' : result.raw.status === 'needs_review' ? 'bg-amber-50 text-amber-800' : 'bg-slate-100 text-slate-700'}`}>
-              {result.raw.status === 'scored' ? 'Đủ bằng chứng' : result.raw.status === 'needs_review' ? 'Cần nghe lại' : result.raw.status}
+            <span className={`w-fit rounded-full px-3.5 py-2 text-xs font-bold ${result.scores.overall != null || result.raw.status === 'scored' ? 'bg-emerald-50 text-emerald-800' : 'bg-amber-50 text-amber-800'}`}>
+              {result.scores.overall != null ? `Band IELTS: ${Number(result.scores.overall).toFixed(1)}` : result.raw.status === 'scored' ? 'Đã chấm điểm' : 'Cần nghe lại'}
             </span>
           </header>
 
           <ScoreGrid scores={result.scores} />
-          <AssessmentQualityCard quality={result.raw.assessment_quality} />
 
-          {result.raw.status !== 'scored' && (
+          <ModelAnswerCard modelAnswer={result.raw.model_answer} upgrader={result.raw.upgrader} />
+
+          {result.raw.status !== 'scored' && result.scores.overall == null && (
             <div className="flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 text-amber-950">
               <AlertCircle className="mt-0.5 shrink-0 text-amber-700" size={19} aria-hidden="true" />
               <div><h2 className="font-bold">{result.raw.status === 'needs_review' ? 'Bài nói cần được xem lại' : 'Chỉ hiển thị tiêu chí đủ bằng chứng'}</h2>
@@ -343,6 +345,8 @@ export default function SpeakingPractice() {
           </section>
 
           <PronunErrorList problems={result.raw.pronun?.problem_words || []} />
+
+          <AssessmentQualityCard quality={result.raw.assessment_quality} />
           <div className="flex flex-col-reverse gap-3 border-t border-slate-200 pt-5 sm:flex-row sm:justify-between">
             <button type="button" onClick={() => { setStep(2); setResult(null); resetPreparation(); }} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-5 text-sm font-bold text-slate-700 transition hover:bg-slate-50">
               <ArrowLeft size={16} /> Thử lại chủ đề này

@@ -12,6 +12,7 @@ an Admin/RBAC security system.
 ## Documentation
 
 - [Current system map](docs/architecture/current-system.md): modules, routes, API clients, data and provider boundaries.
+- [Architectural drivers](docs/architecture/architecture-drivers.md): business goals, stakeholders, ASRs, measurable quality scenarios, constraints and release gates.
 - [Refactor handoff report](docs/verification/refactor-handoff-report.md): compatibility checks, test results, limitations and screenshots.
 - [Whisper runtime hardening](docs/verification/whisper-runtime-hardening.md): concurrency, fallback, timeouts, configuration and real model checks.
 - [Product design direction](DESIGN.md): design principles and planned roles; Admin pages are not implemented.

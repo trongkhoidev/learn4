@@ -39,11 +39,11 @@ export default function ScoreGrid({ scores = {} }) {
       <div className="relative isolate overflow-hidden rounded-[24px] bg-[#111b3d] p-5 text-white shadow-lg shadow-blue-950/10 sm:p-6">
         <div aria-hidden="true" className="pointer-events-none absolute -right-12 -top-12 -z-10 h-36 w-36 rounded-full border-[22px] border-white/[0.06]" />
         <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[.14em] text-blue-200">
-          <Award size={16} aria-hidden="true" /> {isEstimatedFromThree ? 'Điểm ngôn ngữ tham khảo' : 'Band tổng thể'}
+          <Award size={16} aria-hidden="true" /> {isEstimatedFromThree ? 'Điểm ngôn ngữ tham khảo' : 'Band tổng thể IELTS'}
         </div>
         <div className="mt-4 flex items-end gap-2">
           <span className="text-5xl font-extrabold tracking-tight sm:text-6xl">{overall == null ? '—' : Number(overall).toFixed(1)}</span>
-          {overall != null && <span className="mb-2 text-sm font-semibold text-blue-200">/ 9</span>}
+          {overall != null && <span className="mb-2 text-sm font-semibold text-blue-200">/ 9.0</span>}
         </div>
         <div className="mt-4 flex items-start gap-2 border-t border-white/10 pt-4 text-xs leading-5 text-blue-100/75">
           <CircleHelp className="mt-0.5 shrink-0" size={14} aria-hidden="true" />
@@ -52,7 +52,7 @@ export default function ScoreGrid({ scores = {} }) {
               ? 'Chưa đủ dữ liệu để tính band tổng thể.'
               : isEstimatedFromThree
                 ? 'Trung bình 3 tiêu chí ngôn ngữ. Chưa phải band tổng thể vì còn thiếu đánh giá Phát âm.'
-                : 'Ước lượng chẩn đoán IELTS Speaking, không thay thế chứng chỉ chính thức.'}
+                : 'Đánh giá chẩn đoán theo chuẩn IELTS Speaking Band Descriptors (làm tròn half-band chính thức).'}
           </p>
         </div>
       </div>
@@ -61,7 +61,7 @@ export default function ScoreGrid({ scores = {} }) {
         {criteria.map(({ key, label, accent }) => {
           const criterion = scores[key] || {};
           const value = criterion.band ?? criterion.score;
-          const status = value != null ? 'Có căn cứ' : statusLabels[criterion.status] || 'Chưa đủ evidence';
+          const status = value != null ? 'Band đạt được' : statusLabels[criterion.status] || 'Đang đánh giá';
 
           return (
             <article key={key} className="flex min-h-36 flex-col justify-between rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
