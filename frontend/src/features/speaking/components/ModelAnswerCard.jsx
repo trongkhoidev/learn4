@@ -3,10 +3,12 @@ import { Sparkles, BookOpen, ArrowRight } from 'lucide-react';
 import SpeakButton from './SpeakButton.jsx';
 
 export default function ModelAnswerCard({ modelAnswer, upgrader }) {
-  const answer = modelAnswer || (upgrader?.model_answer ? { text: upgrader.model_answer } : null);
+  const answerText = typeof modelAnswer === 'string'
+    ? modelAnswer
+    : modelAnswer?.model_answer || modelAnswer?.text || upgrader?.model_answer || '';
   const collocations = modelAnswer?.collocations || upgrader?.collocations || [];
 
-  if (!answer?.text && (!collocations || collocations.length === 0)) {
+  if (!answerText && (!collocations || collocations.length === 0)) {
     return null;
   }
 
@@ -27,18 +29,18 @@ export default function ModelAnswerCard({ modelAnswer, upgrader }) {
             <p className="text-xs text-slate-500">Cấu trúc mở rộng, từ vựng C1-C2 và diễn đạt tự nhiên</p>
           </div>
         </div>
-        {answer?.text && (
+        {answerText && (
           <div className="flex items-center gap-2">
             <span className="text-xs font-semibold text-slate-500">Nghe phát âm:</span>
-            <SpeakButton text={answer.text} />
+            <SpeakButton text={answerText} />
           </div>
         )}
       </div>
 
-      {answer?.text && (
+      {answerText && (
         <div className="mt-5 rounded-2xl border border-violet-100 bg-white p-4 shadow-sm sm:p-5">
           <p className="font-serif text-sm italic leading-7 text-slate-800 sm:text-base">
-            &ldquo;{answer.text}&rdquo;
+            &ldquo;{answerText}&rdquo;
           </p>
         </div>
       )}
@@ -50,22 +52,25 @@ export default function ModelAnswerCard({ modelAnswer, upgrader }) {
             <span>Từ vựng & Diễn đạt nâng band gợi ý</span>
           </div>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {collocations.map((item, idx) => (
-              <div key={idx} className="rounded-xl border border-violet-100 bg-white p-3.5 shadow-xs transition hover:border-violet-300">
-                <div className="flex items-center gap-1.5 text-xs">
-                  {item.original && (
-                    <>
-                      <span className="text-slate-400 line-through truncate max-w-[110px]">{item.original}</span>
-                      <ArrowRight size={12} className="text-violet-500 shrink-0" />
-                    </>
+            {collocations.map((item, idx) => {
+              const phrase = item.upgrade || item.phrase;
+              return (
+                <div key={idx} className="rounded-xl border border-violet-100 bg-white p-3.5 shadow-xs transition hover:border-violet-300">
+                  <div className="flex items-center gap-1.5 text-xs">
+                    {item.original && (
+                      <>
+                        <span className="max-w-[110px] truncate text-slate-400 line-through">{item.original}</span>
+                        <ArrowRight size={12} className="shrink-0 text-violet-500" />
+                      </>
+                    )}
+                    <span className="font-bold text-violet-800">{phrase}</span>
+                  </div>
+                  {item.meaning && (
+                    <p className="mt-1.5 text-xs leading-relaxed text-slate-600">{item.meaning}</p>
                   )}
-                  <span className="font-bold text-violet-800">{item.upgrade}</span>
                 </div>
-                {item.meaning && (
-                  <p className="mt-1.5 text-xs text-slate-600 leading-relaxed">{item.meaning}</p>
-                )}
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}
