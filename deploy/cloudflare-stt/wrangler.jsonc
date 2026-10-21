@@ -1,6 +1,7 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "learn4-whisper-stt",
+  "account_id": "11b2a07adc6c54a69be0b86528acf50d",
   "main": "src/index.js",
   "compatibility_date": "2026-10-01",
   "ai": {

@@ -18,7 +18,7 @@ Configure the backend with the resulting origin and the same secret:
 CLOUDFLARE_WORKER_URL=https://<worker>.workers.dev
 CLOUDFLARE_WORKER_TOKEN=<shared-secret>
 STT_PROVIDER=ensemble
-STT_ENSEMBLE_PROVIDERS=deepgram,cloudflare,selfhost
+STT_ENSEMBLE_PROVIDERS=deepgram,cloudflare
 STT_ENSEMBLE_MIN_PROVIDERS=2
 ```
 
