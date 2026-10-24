@@ -83,9 +83,9 @@ def test_async_practice_worker_end_to_end(monkeypatch):
         while payload["status"] == "pending" and time.time() < deadline:
             time.sleep(0.1)
             payload = client.get(f"/api/v1/speaking/practice/{session_id}").json()
-        assert payload["status"] == "partial"
+        assert payload["status"] == "scored"
         assert payload["result"]["assessment_meta"]["scoring_version"]
-        assert payload["result"]["overall"] is None
+        assert payload["result"]["overall"] is not None
 
 
 def test_mock_session_turn_and_completion(monkeypatch):
@@ -139,9 +139,9 @@ def test_mock_session_turn_and_completion(monkeypatch):
         completed = client.post(f"/api/v1/speaking/mock-sessions/{session_id}/complete")
         assert completed.status_code == 200
         assert completed.json()["status"] == "completed"
-        assert completed.json()["result"]["status"] == "partial"
-        assert completed.json()["result"]["overall"] is None
-        assert completed.json()["result"]["pronun"]["band"] is None
+        assert completed.json()["result"]["status"] == "scored"
+        assert completed.json()["result"]["overall"] is not None
+        assert completed.json()["result"]["pronun"]["band"] is not None
         assert completed.json()["result"]["fluency"]["band"] == 6.5
         evidence_ids = completed.json()["result"]["fluency"]["evidence"]
         cited_parts = {word_id.split("_")[0] for item in evidence_ids for word_id in item["word_ids"]}

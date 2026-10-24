@@ -13,8 +13,10 @@ an Admin/RBAC security system.
 
 - [Current system map](docs/architecture/current-system.md): modules, routes, API clients, data and provider boundaries.
 - [Architectural drivers](docs/architecture/architecture-drivers.md): business goals, stakeholders, ASRs, measurable quality scenarios, constraints and release gates.
+- [Pronunciation engine plan](docs/plans/pronunciation-engine-implementation-plan.md) and [AI handoff prompt](docs/prompts/pronunciation-engine-handoff.md): evidence-first implementation, calibration and release gates.
 - [Refactor handoff report](docs/verification/refactor-handoff-report.md): compatibility checks, test results, limitations and screenshots.
 - [Whisper runtime hardening](docs/verification/whisper-runtime-hardening.md): concurrency, fallback, timeouts, configuration and real model checks.
+- [Pronunciation engine verification report](docs/verification/pronunciation-engine-report.md): P0–P8 progress, nullable-band state, release gates and blockers.
 - [Product design direction](DESIGN.md): design principles and planned roles; Admin pages are not implemented.
 - [Role/page inventory](docs/design/role-page-inventory.md) and [Stitch brief](docs/design/stitch-redesign-brief.md): inputs for the next design phase.
 - [Current cleanup plan](docs/plans/project-cleanup-refactor-plan.md).

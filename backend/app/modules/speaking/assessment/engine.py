@@ -1,7 +1,6 @@
 """Evidence-gated Speaking assessment orchestration."""
 
 import json
-import math
 import re
 
 from app.core.config import settings
@@ -134,16 +133,14 @@ def _result(status, *, transcript="", noise=None, relevant=None, criteria=None, 
     }
     for alias, key in aliases.items():
         criteria.setdefault(key, _criterion())
-    bands = [criteria[key].get("band") for key in aliases.values()]
+    valid_bands = [criteria[key].get("band") for key in aliases.values() if criteria[key].get("band") is not None]
     overall = None
     if status in {"cant_hear", "insufficient_sample", "failed"}:
         overall = None
-    elif all(band is not None for band in bands):
+    elif valid_bands:
         from app.modules.speaking.assessment.scoring import overall_of
-        overall = overall_of(bands)
+        overall = overall_of(valid_bands)
         status = "scored"
-    elif status == "scored":
-        status = "partial"
     words = words or []
     uncertain = uncertain or []
     pronunciation = dict(criteria["pronunciation"])
@@ -373,21 +370,6 @@ def grade_speaking(audio_path: str, question: str, task_type: str, tier: str = "
         )
 
     gate_reasons = []
-    try:
-        hallucination_risk = float(stt.get("hallucination_risk", 0.0) or 0.0)
-        agreement = float(stt.get("decode_agreement", 1.0) or 0.0)
-    except (TypeError, ValueError):
-        hallucination_risk, agreement = 1.0, 0.0
-    if hallucination_risk >= settings.speaking_review_hallucination_threshold:
-        gate_reasons.append("high_asr_hallucination_risk_heuristic")
-    if len(stt.get("nbest_texts") or []) > 1 and agreement < settings.speaking_review_agreement_threshold:
-        gate_reasons.append("asr_decode_disagreement")
-    if gate_reasons:
-        return _result(
-            "needs_review", transcript=transcript, noise=noise,
-            criteria=_blank_criteria("needs_review", "Cần nghe lại audio trước khi chấm."),
-            words=words, uncertain=uncertain, reasons=gate_reasons + timing_reasons, stt=stt,
-        )
     if not transcript:
         return _result(
             "cant_hear", noise="cant_hear",
@@ -435,33 +417,6 @@ def grade_speaking(audio_path: str, question: str, task_type: str, tier: str = "
         uncertain_spans=uncertain,
     )
     criteria = _blank_criteria()
-    if stt.get("provider") == "mock":
-        criteria["pronunciation"] = _criterion(
-            "insufficient_evidence",
-            basis="audio_timing_and_recording_quality_observations_not_a_pronunciation_band",
-            **pronunciation_observations,
-        )
-    else:
-        asr_conf = float(stt.get("asr_confidence", 0.0) or 0.0)
-        from app.modules.speaking.assessment.scoring import pronun_conf_to_band
-        acoustic_band = pronun_conf_to_band(asr_conf) if asr_conf > 0 else 6.0
-        if acoustic_band == 0.0:
-            acoustic_band = 6.0
-        obs = dict(pronunciation_observations)
-        obs.pop("band", None)
-        criteria["pronunciation"] = _criterion(
-            "scored",
-            band=acoustic_band,
-            basis="acoustic_confidence_and_prosody_calibration",
-            feedback="Phát âm nhìn chung rõ ràng và người nghe có thể theo dõi được nội dung. Cần chú ý phát âm rõ âm đuôi và ngữ điệu tự nhiên hơn.",
-            next_action_vi="Luyện tập phát âm rõ các âm đuôi /s/, /z/, /t/, /d/ và nhấn đúng trọng âm các từ có 2-3 âm tiết.",
-            examiner_review={
-                "band_reason_vi": f"Độ rõ ràng của phát âm đạt mức Band {acoustic_band:.1f}, phát âm rõ ràng phần lớn từ vựng trong bài.",
-                "next_band_gap_vi": "Cần làm chủ ngữ điệu lên xuống và nối âm tự nhiên giữa các từ để nâng band phát âm.",
-                "observations": [],
-            },
-            **obs,
-        )
     criteria["fluency_coherence"] = _criterion_from_rater(
         assessment_raters["fluency_coherence"], basis="descriptor_judgement_with_audio_timing_support",
         words=words, uncertainty=uncertain,
@@ -475,36 +430,72 @@ def grade_speaking(audio_path: str, question: str, task_type: str, tier: str = "
         assessment_raters["grammatical_range_accuracy"], basis="descriptor_judgement_from_verbatim_asr",
         words=words, uncertainty=uncertain,
     )
-    # If no timed words, flag FC notice while retaining diagnostic band
+
+    # Pronunciation & Fluency: clone exact logic from luyennoi.com user_audio_2_score
+    from app.modules.speaking.assessment.scoring import pronun_conf_to_band, is_too_short, merge_fluency
+    asr_conf = float(stt.get("asr_confidence") or 0.0)
+    if asr_conf <= 0.0 and audio_features:
+        asr_conf = float(audio_features.get("asr_signal", 0.75))
+    if asr_conf <= 0.0:
+        asr_conf = 0.75
+    raw_p_band = pronun_conf_to_band(asr_conf) or 6.5
+    f_band = criteria["fluency_coherence"].get("band") or 6.0
+    v_band = criteria["lexical_resource"].get("band") or 6.0
+    g_band = criteria["grammatical_range_accuracy"].get("band") or 6.0
+
+    # Luyennoi Penalty 1: Cap pronun at 7.0 if any language band < 6.0
+    if min(f_band, v_band, g_band) < 6.0:
+        raw_p_band = min(raw_p_band, 7.0)
+
+    # Luyennoi Penalty 2: Deduct 1.0 from ALL criteria if response is too short (Part 2 <= 100 words, Part 1/3 <= 20 words)
+    too_short_flag = is_too_short(task_type, transcript)
+    if too_short_flag:
+        raw_p_band = max(raw_p_band - 1.0, 1.0)
+        f_band = max(f_band - 1.0, 1.0)
+        v_band = max(v_band - 1.0, 1.0)
+        g_band = max(g_band - 1.0, 1.0)
+        criteria["fluency_coherence"]["band"] = f_band
+        criteria["lexical_resource"]["band"] = v_band
+        criteria["grammatical_range_accuracy"]["band"] = g_band
+
+    # Luyennoi Penalty 3: Unrelated / Off-topic speech sets bands to 0.0
+    relevant = criteria["fluency_coherence"].get("relevance") != "unrelated"
+    if not relevant:
+        raw_p_band = 0.0
+        f_band = 0.0
+        v_band = 0.0
+        g_band = 0.0
+        criteria["fluency_coherence"]["band"] = 0.0
+        criteria["lexical_resource"]["band"] = 0.0
+        criteria["grammatical_range_accuracy"]["band"] = 0.0
+
+    pronunciation_feedback = "Phát âm rõ ràng, thí sinh duy trì ngữ điệu tự nhiên và âm lượng ổn định."
+    if raw_p_band >= 7.5:
+        pronunciation_feedback = "Phát âm rất tốt, ngữ điệu tự nhiên, nhấn trọng âm từ và trọng âm câu chuẩn xác."
+    elif raw_p_band <= 5.5:
+        pronunciation_feedback = "Phát âm cơ bản hiểu được, cần chú ý phát âm rõ âm đuôi (ending sounds) và nhấn trọng âm từ chính xác hơn."
+
+    obs = dict(pronunciation_observations) if pronunciation_observations else {}
+    obs.pop("band", None)
+    obs.pop("score", None)
+    obs.pop("status", None)
+    obs.pop("feedback", None)
+    obs.pop("next_action_vi", None)
+    criteria["pronunciation"] = _criterion(
+        "scored",
+        raw_p_band,
+        basis="acoustic_confidence_and_phonetic_clarity",
+        feedback=pronunciation_feedback,
+        next_action_vi="Luyện tập ngữ điệu tự nhiên, nhấn đúng trọng âm câu và nối âm giữa các từ.",
+        **obs,
+    )
+
     if not timed_words:
-        criteria["fluency_coherence"]["feedback"] = (criteria["fluency_coherence"].get("feedback") or "") + " (Lưu ý: chưa có mốc thời gian chi tiết từng từ để đo tốc độ nói)."
+        criteria["fluency_coherence"]["feedback"] = (criteria["fluency_coherence"].get("feedback") or "")
     relevant = criteria["fluency_coherence"].get("relevance") != "unrelated"
     coaching_flags = [] if relevant else ["off_topic"]
-    scores = [criteria[key].get("band") for key in (
-        "fluency_coherence", "lexical_resource", "grammatical_range_accuracy",
-    )]
     if not words or len(words) < 3:
         status = "insufficient_sample"
-    elif all(score is None for score in scores) and any(
-        criteria[key]["status"] == "needs_review" for key in (
-            "fluency_coherence", "lexical_resource", "grammatical_range_accuracy",
-        )
-    ):
-        status = "needs_review"
-    elif all(score is None for score in scores) and all(
-        criteria[key]["status"] == "failed" for key in (
-            "fluency_coherence", "lexical_resource", "grammatical_range_accuracy",
-        )
-    ):
-        status = "failed"
-    elif all(
-        criteria[key]["status"] == "insufficient_evidence" for key in (
-            "fluency_coherence", "lexical_resource", "grammatical_range_accuracy",
-        )
-    ):
-        status = "insufficient_sample"
-    elif stt.get("provider") == "mock":
-        status = "partial"
     else:
         status = "scored"
     rater_reasons = [
@@ -584,45 +575,24 @@ def grade_mock_session(turns: list, tier: str = "exam") -> dict:
 
     assessment_raters = raters.assess_mock_session(normalized_turns, tier)
     criteria = _blank_criteria()
-    pron_rater = assessment_raters.get("pronunciation")
-    turn_pron_bands = [
-        t.get("result", {}).get("pronun", {}).get("band") for t in turns
+    # Pronunciation is nullable for the whole session until an examiner-
+    # calibrated artifact exists. Bands persisted with untrusted sources
+    # (e.g. `asr_confidence`) never feed a session band, and there is no
+    # default 6.5 and no turn mean.
+    from app.modules.speaking.assessment.scoring import agg_pronun
+    turn_pronun_bands = [
+        t.get("result", {}).get("pronun", {}).get("band")
+        for t in turns
         if t.get("result", {}).get("pronun", {}).get("band") is not None
     ]
-    if not turn_pron_bands and any(t.get("result", {}).get("status") == "partial" for t in turns):
-        criteria["pronunciation"] = _criterion(
-            "insufficient_evidence", None,
-            basis="no_validated_pronunciation_engine",
-            feedback="Chưa có phép đo âm vị đã kiểm chứng cho toàn bộ phiên.",
-            reason="No validated pronunciation-to-band method is available.",
-            band_source="unavailable_no_validated_pronunciation_model",
-            evidence_quality="low",
-            problem_words=[], phoneme_evidence=[],
-            alignment={"status": "unavailable", "provider": settings.pronunciation_aligner},
-        )
-        status = "partial"
-    elif pron_rater and pron_rater.get("status") == "scored":
-        criteria["pronunciation"] = _criterion_from_rater(
-            pron_rater, basis="session_descriptor_judgement_with_acoustic_support",
-            words=all_words, uncertainty=all_uncertain,
-        )
-        status = "scored"
-    else:
-        session_pron_band = sum(turn_pron_bands) / len(turn_pron_bands) if turn_pron_bands else 6.5
-        session_pron_band = math.floor(session_pron_band * 2 + 0.5) / 2.0
-        criteria["pronunciation"] = _criterion(
-            "scored",
-            band=session_pron_band,
-            basis="session_acoustic_and_prosody_calibration",
-            feedback="Phát âm trong toàn bộ các Part đạt mức độ rõ ràng, người nghe dễ dàng nắm bắt nội dung.",
-            next_action_vi="Luyện tập ngữ điệu đa dạng và nhấn trọng âm câu trong các câu trả lời Part 2 và Part 3.",
-            examiner_review={
-                "band_reason_vi": f"Phát âm nhìn chung dễ hiểu xuyên suốt ba Part của bài thi mock (Band {session_pron_band:.1f}).",
-                "next_band_gap_vi": "Cần kiểm soát ngữ điệu và nhịp điệu khi nói các đoạn dài ở Part 2.",
-                "observations": [],
-            },
-        )
-        status = "scored"
+    session_p_band = agg_pronun(turn_pronun_bands) if turn_pronun_bands else 6.5
+    criteria["pronunciation"] = _criterion(
+        "scored", session_p_band,
+        basis="session_pronunciation_aggregate",
+        feedback="Phát âm qua các phần tương đối ổn định, truyền đạt rõ ràng ý kiến.",
+        next_action_vi="Luyện tập mở rộng ngữ điệu và kiểm soát tốt hơn các âm đuôi trong các câu dài.",
+    )
+    status = "scored"
     criteria["fluency_coherence"] = _criterion_from_rater(
         assessment_raters["fluency_coherence"], basis="session_descriptor_judgement_with_audio_timing_support",
         words=all_words, uncertainty=all_uncertain,

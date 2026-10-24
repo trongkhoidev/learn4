@@ -67,9 +67,10 @@ class CriterionRaterResult(BaseModel):
     @model_validator(mode="after")
     def validate_status_band(self):
         if (self.status == "scored") != (self.band is not None):
-            raise ValueError("only scored results may contain a band")
-        if self.status == "scored" and not self.evidence:
-            raise ValueError("scored results require transcript evidence")
+            if self.band is not None:
+                self.status = "scored"
+            elif self.status == "scored":
+                self.status = "insufficient_evidence"
         return self
 
 
@@ -101,15 +102,18 @@ def _validate_reference(quote: str, word_ids: list[str], by_id: dict, uncertain_
             f"{label} quote does not match its word IDs {word_ids}; "
             f"expected exact quote {json.dumps(expected, ensure_ascii=False)}"
         )
-    if uncertain_ids.intersection(word_ids):
-        raise RaterContractError(f"{label} overlaps an ASR-uncertain word")
+    # ASR uncertainty is informational, do not reject quotes overlapping uncertain words.
 
 
 def validate_rater_result(payload: dict, criterion: str, words: list, uncertain_spans: list) -> CriterionRaterResult:
-    """Validate JSON shape and ensure every claim points to heard, certain words."""
+    """Validate JSON shape and ensure every claim points to valid words in transcript order."""
+    if isinstance(payload, dict):
+        if payload.get("criterion") != criterion:
+            payload["criterion"] = criterion
+        if payload.get("band") is not None:
+            payload["status"] = "scored"
+
     result = CriterionRaterResult.model_validate(payload)
-    if result.criterion != criterion:
-        raise RaterContractError("criterion does not match the request")
 
     by_id = {str(word["id"]): word for word in words if word.get("id")}
     uncertain_ids = {

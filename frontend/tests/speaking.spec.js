@@ -326,7 +326,18 @@ test('Context board shows proposed names inline and saves learner confirmation s
     schema_version: 'speaking-v3', status: 'partial', scope: 'practice_answer', overall: null,
     transcript: text, color_coded_transcript: tokens,
     fluency: criterion, vocab: criterion, grammar: criterion,
-    pronun: { status: 'insufficient_evidence', feedback: 'Chưa đủ bằng chứng âm vị.', next_action_vi: 'Nghe lại một câu và ghi âm lần nữa.' },
+    pronun: {
+      status: 'insufficient_evidence',
+      feedback: 'Chưa đủ bằng chứng âm vị.',
+      next_action_vi: 'Nghe lại một câu và ghi âm lần nữa.',
+      phoneme_evidence: [{
+        id: 'pe_1', word: 'atmosphere', word_id: 'w7', start: 3.2, end: 3.6,
+        expected_phone: 'SF', observed_phone: 'S', kind: 'substitution',
+        status: 'candidate', score_unscaled: -1.2, confidence: null,
+        explanation_vi: 'Quan sát ứng viên cho âm /SF/ trong từ \'atmosphere\'.',
+        practice_hint_vi: 'Nghe lại từ \'atmosphere\' ở đoạn 3.20s và đọc lại cả cụm.',
+      }],
+    },
     assessment_quality: {
       level: 'medium', coverage_score: 68, provider_count: 2, provider_agreement: 0.824,
       scope: 'language_only', timing_coverage: 1, uncertain_word_ratio: 0.24,
@@ -349,6 +360,13 @@ test('Context board shows proposed names inline and saves learner confirmation s
     await route.fulfill({ json: response });
   });
   await page.goto('/speaking/practice?session=context-board');
+  const phonemePanel = page.getByRole('region', { name: 'Phát âm cần nghe lại' });
+  await expect(phonemePanel).toContainText('atmosphere');
+  await expect(phonemePanel.getByText('Cần nghe lại', { exact: true })).toBeVisible();
+  await expect(phonemePanel.getByRole('button', { name: 'Nghe lại atmosphere', exact: true })).toBeVisible();
+  // Candidate evidence is never presented as a scored phone error, and never
+  // as an ASR intended-vs-heard suggestion.
+  await expect(phonemePanel.getByText('Hệ thống nghe thành:')).toHaveCount(0);
   const quality = page.getByRole('region', { name: 'Độ phủ bằng chứng đánh giá' });
   await expect(quality).toContainText('Evidence một phần · 68/100');
   await expect(quality).toContainText('2 engine');

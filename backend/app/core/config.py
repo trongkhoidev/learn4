@@ -82,6 +82,15 @@ class Settings(BaseSettings):
     pronunciation_alignment_device: str = "cpu"
     mfa_dictionary_path: str = ""
     mfa_acoustic_model_path: str = ""
+    # Pronunciation engine: production default is disabled until an
+    # examiner-calibrated artifact passes the release gate.
+    pronunciation_mode: Literal["disabled", "shadow", "enabled"] = "disabled"
+    pronunciation_artifact_path: str = ""
+    pronunciation_phone_model: str = "none"  # none | manifest
+    pronunciation_phone_model_manifest: str = ""
+    pronunciation_lexicon_path: str = ""
+    pronunciation_alignment_timeout_seconds: float = Field(default=180.0, gt=0)
+    pronunciation_min_duration_seconds: float = Field(default=1.0, ge=0, allow_inf_nan=False)
     daily_submit_limit_per_student: int = 40
     monthly_spend_cap_usd: float = 130.0
 

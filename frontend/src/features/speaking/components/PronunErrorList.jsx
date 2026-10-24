@@ -1,48 +1,88 @@
 import React from 'react';
-import { Ear } from 'lucide-react';
+import { Ear, Play } from 'lucide-react';
 
-export default function PronunErrorList({ problems = [] }) {
-  if (!problems || problems.length === 0) {
-    return null;
-  }
+export default function PronunErrorList({
+  problems = [],
+  phonemeEvidence = [],
+  onReplayPhrase,
+}) {
+  const candidates = (phonemeEvidence || []).filter(
+    (item) => item && item.word && Number.isFinite(item.start) && Number.isFinite(item.end),
+  );
 
-  const displayProblems = problems;
-  
-  if (displayProblems.length === 0) {
+  if (!problems?.length && !candidates.length) {
     return null;
   }
 
   return (
-    <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-      <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
-        <Ear className="w-5 h-5 text-indigo-500" />
-        Lỗi phát âm cần chú ý ({displayProblems.length})
-      </h3>
-      <div className="space-y-4">
-        {displayProblems.map((error, idx) => (
-          <div key={idx} className="p-4 rounded-xl bg-indigo-50 border border-indigo-100">
-            <div className="flex flex-col">
-              <p className="text-gray-800 font-medium">
-                <span className="text-gray-500 text-sm">Bạn định nói:</span> <span className="text-indigo-700 font-bold">{error.intended}</span>
-                {error.type === 'asr_uncertain' && (
-                  <span className="ml-2 inline-block px-2 py-0.5 bg-yellow-100 text-yellow-700 rounded text-xs font-bold uppercase">Cần nghe lại</span>
+    <section
+      aria-label="Phát âm cần nghe lại"
+      className="rounded-3xl border border-slate-200/90 bg-white p-5 shadow-sm sm:p-7"
+    >
+      <div className="mb-5 flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-4">
+        <div>
+          <h3 className="text-base font-extrabold text-slate-900 sm:text-lg flex items-center gap-2">
+            <Ear className="w-5 h-5 text-amber-500" />
+            Từ vựng cần chú ý phát âm ({candidates.length || problems.length})
+          </h3>
+          <p className="text-xs text-slate-500">
+            Các từ cần nhấn rõ trọng âm, phát âm đầy đủ âm đuôi (ending sounds) hoặc nối âm tự nhiên
+          </p>
+        </div>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        {candidates.map((item, index) => {
+          return (
+            <div
+              key={item.id || index}
+              className="flex flex-col justify-between rounded-2xl border border-amber-100 bg-amber-50/40 p-4 transition hover:border-amber-200"
+            >
+              <div>
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-base font-bold text-slate-900">{item.word}</span>
+                    {item.expected_phone && (
+                      <span className="rounded-md bg-white px-2 py-0.5 text-xs font-bold text-amber-800 border border-amber-200">
+                        /{item.expected_phone}/
+                      </span>
+                    )}
+                  </div>
+                  {onReplayPhrase && (
+                    <button
+                      type="button"
+                      onClick={() => onReplayPhrase(item.start, item.end)}
+                      className="inline-flex items-center gap-1 rounded-xl bg-white px-2.5 py-1 text-xs font-bold text-amber-800 border border-amber-200 shadow-xs hover:bg-amber-100 active:scale-95"
+                    >
+                      <Play size={12} fill="currentColor" /> Nghe lại
+                    </button>
+                  )}
+                </div>
+
+                {item.practice_hint_vi && (
+                  <p className="mt-2 text-xs leading-5 text-slate-600">
+                    {item.practice_hint_vi}
+                  </p>
                 )}
-              </p>
-              <p className="text-gray-800 font-medium mt-1">
-                <span className="text-gray-500 text-sm">Hệ thống nghe thành:</span> <span className="text-red-500 line-through">{error.heard}</span>
-              </p>
-              <div className="mt-2 text-sm text-gray-600">
-                <span className="inline-block px-2 py-1 bg-white rounded border border-indigo-100 text-indigo-600 mr-2">
-                  Độ giống âm: {error.phonetic_sim || 'N/A'}
-                </span>
-                <span className="inline-block px-2 py-1 bg-white rounded border border-indigo-100 text-indigo-600">
-                  Hợp ngữ cảnh: {error.semantic_fit || 'N/A'}
-                </span>
               </div>
+            </div>
+          );
+        })}
+
+        {problems.map((item, index) => (
+          <div
+            key={index}
+            className="flex flex-col justify-between rounded-2xl border border-slate-200 bg-white p-4"
+          >
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-slate-500">Ý định:</span>
+              <span className="font-bold text-indigo-700">{item.intended}</span>
+              <span className="text-xs text-slate-400">→ nghe thành:</span>
+              <span className="font-semibold text-rose-600 line-through">{item.heard}</span>
             </div>
           </div>
         ))}
       </div>
-    </div>
+    </section>
   );
 }

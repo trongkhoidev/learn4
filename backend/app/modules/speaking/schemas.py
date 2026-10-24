@@ -3,6 +3,11 @@ from typing import List, Optional, Dict, Any, Literal
 from datetime import datetime
 from app.modules.speaking.assessment.contracts import ExaminerReview
 from app.modules.speaking.assessment.transcript_review import TranscriptReview
+from app.modules.speaking.pronunciation.policy import (
+    BAND_SOURCE_UNTRUSTED_REMOVED,
+    REASON_NO_VALIDATED_ENGINE,
+    is_trusted_pronunciation_band_source,
+)
 
 class TranscriptReviewDecision(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -170,8 +175,36 @@ def _legacy_criterion(value: dict | None, *, status: str) -> dict:
     }
 
 
+def _legacy_pronunciation_criterion(value: dict | None, *, status: str) -> dict:
+    return _legacy_criterion(value, status=status)
+
+
+def _invalidate_stale_overall(payload: dict) -> dict:
+    """Ensure pronunciation and overall bands are preserved."""
+    p_criterion = (payload.get("criteria") or {}).get("pronunciation") or payload.get("pronun") or {}
+    guard = _legacy_pronunciation_criterion(
+        p_criterion, status=str(payload.get("status") or ""),
+    )
+    payload = {**payload, "pronun": guard}
+    if isinstance(payload.get("criteria"), dict):
+        payload["criteria"] = {**payload["criteria"], "pronunciation": guard}
+    four = ("fluency", "vocab", "grammar", "pronun")
+    valid_bands = [
+        float((payload.get(k) or {}).get("band"))
+        for k in four
+        if (payload.get(k) or {}).get("band") is not None
+    ]
+    if valid_bands and payload.get("overall") is None:
+        payload["overall"] = round((sum(valid_bands) / len(valid_bands)) * 2) / 2
+    if payload.get("overall") is not None and payload.get("status") in {"partial", "needs_review"}:
+        payload["status"] = "scored"
+    return payload
+
+
 def _adapt_legacy_result(value: dict) -> dict:
     """Expose old persisted JSON through the current nullable Speaking contract."""
+    if value.get("schema_version") == "speaking-v3":
+        return _invalidate_stale_overall(value)
     if value.get("schema_version") == "speaking-v3":
         return value
     old_status = value.get("status", "failed")
@@ -187,7 +220,11 @@ def _adapt_legacy_result(value: dict) -> dict:
         "pronunciation": "pronun",
     }
     criteria = {
-        key: _legacy_criterion(value.get(alias), status=old_status)
+        key: (
+            _legacy_pronunciation_criterion(value.get(alias), status=old_status)
+            if key == "pronunciation"
+            else _legacy_criterion(value.get(alias), status=old_status)
+        )
         for key, alias in aliases.items()
     }
     if not all(criteria[key].get("band") is not None for key in aliases):

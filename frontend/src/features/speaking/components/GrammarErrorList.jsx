@@ -1,37 +1,78 @@
-import { ArrowRight, CheckCircle2 } from 'lucide-react';
+import React from 'react';
+import { ArrowRight, CheckCircle2, AlertCircle, Sparkles } from 'lucide-react';
 
-function Correction({ error }) {
-  const optional = error.error_or_improvement === 'optional_improvement';
+function CorrectionCard({ error }) {
+  const isOptional = error.error_or_improvement === 'optional_improvement';
+  const wrong = error.error || error.wrong;
+  const correct = error.correct;
+  const explain = error.explain || error.explanation;
+
   return (
-    <article className="rounded-xl border border-slate-200 p-4">
-      <p className={`text-[10px] font-bold uppercase tracking-wider ${optional ? 'text-indigo-600' : 'text-rose-600'}`}>{optional ? 'Gợi ý diễn đạt' : 'Ngữ pháp · Cần sửa'}</p>
-      <p className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
-        <span className={optional ? 'text-slate-600' : 'text-rose-700'}>{error.error || error.wrong}</span>
-        <ArrowRight size={14} className="shrink-0 text-slate-400" aria-hidden="true" />
-        <span className="font-semibold text-indigo-700">{error.correct}</span>
-      </p>
-      <p className="mt-2 text-xs leading-5 text-slate-500">{error.explain || error.explanation}</p>
+    <article className="flex flex-col justify-between rounded-2xl border border-slate-200/90 bg-white p-4 shadow-xs transition hover:border-slate-300 sm:p-5">
+      <div>
+        <div className="flex items-center gap-2">
+          {isOptional ? (
+            <span className="inline-flex items-center gap-1 rounded-full bg-indigo-50 px-2.5 py-0.5 text-[10px] font-extrabold uppercase text-indigo-700">
+              <Sparkles size={11} /> Gợi ý tự nhiên hơn
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1 rounded-full bg-rose-50 px-2.5 py-0.5 text-[10px] font-extrabold uppercase text-rose-700">
+              <AlertCircle size={11} /> Ngữ pháp · Cần sửa
+            </span>
+          )}
+        </div>
+
+        <div className="mt-3 flex flex-wrap items-center gap-2 text-sm font-medium">
+          <span className="rounded-lg bg-rose-50/80 px-2.5 py-1 text-rose-700 line-through">
+            {wrong}
+          </span>
+          <ArrowRight size={14} className="shrink-0 text-slate-400" aria-hidden="true" />
+          <span className="rounded-lg bg-emerald-50 px-2.5 py-1 font-bold text-emerald-800">
+            {correct}
+          </span>
+        </div>
+      </div>
+
+      {explain && (
+        <p className="mt-3 border-t border-slate-100 pt-3 text-xs leading-5 text-slate-600">
+          {explain}
+        </p>
+      )}
     </article>
   );
 }
 
-export default function GrammarErrorList({ errors = [], status = 'scored' }) {
+export default function GrammarErrorList({ errors = [] }) {
   return (
-    <section aria-label="Đối chiếu ngữ pháp" className="rounded-[24px] border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-        <h3 className="text-base font-bold text-slate-950">Chỉnh câu & cách diễn đạt</h3>
-        <span className="text-xs text-slate-400">{errors.length} mục có dẫn chứng</span>
+    <section aria-label="Sửa lỗi ngữ pháp & diễn đạt" className="rounded-3xl border border-slate-200/90 bg-white p-5 shadow-sm sm:p-7">
+      <div className="mb-5 flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-4">
+        <div>
+          <h3 className="text-base font-extrabold text-slate-900 sm:text-lg">
+            Sửa lỗi câu & Hoàn thiện diễn đạt
+          </h3>
+          <p className="text-xs text-slate-500">Đối chiếu trực tiếp từ transcript để cải thiện độ chuẩn xác và tự nhiên</p>
+        </div>
+        <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-700">
+          {errors.length} điểm cần lưu ý
+        </span>
       </div>
+
       {!errors.length ? (
-        <div className="flex items-start gap-3 text-sm text-slate-600">
-          <CheckCircle2 size={18} className="mt-0.5 shrink-0 text-slate-400" />
-          <div><h3 className="font-semibold text-slate-800">{status === 'scored' ? 'Không có lỗi được xác nhận' : 'Chưa đủ bằng chứng ngữ pháp'}</h3><p className="mt-1 text-xs leading-5 text-slate-500">Nhận xét dựa trên phần lời nói nhận diện được.</p></div>
+        <div className="flex items-center gap-3 rounded-2xl bg-emerald-50/50 p-4 text-sm text-emerald-950 border border-emerald-100">
+          <CheckCircle2 size={20} className="shrink-0 text-emerald-600" />
+          <div>
+            <h4 className="font-bold">Không phát hiện lỗi ngữ pháp nghiêm trọng</h4>
+            <p className="mt-0.5 text-xs text-emerald-800/80">Thí sinh kiểm soát cấu trúc câu tốt trong phạm vi bài nói ghi nhận được.</p>
+          </div>
         </div>
       ) : (
-        <>
-          <div className="grid gap-3 md:grid-cols-2">{errors.slice(0, 2).map((error, index) => <Correction key={index} error={error} />)}</div>
-          {errors.length > 2 && <details className="mt-4"><summary className="cursor-pointer text-xs font-bold text-indigo-700">Xem {errors.length - 2} mục còn lại</summary><div className="mt-3 grid gap-3 md:grid-cols-2">{errors.slice(2).map((error, index) => <Correction key={index} error={error} />)}</div></details>}
-        </>
+        <div className="space-y-4">
+          <div className="grid gap-3 md:grid-cols-2">
+            {errors.map((error, index) => (
+              <CorrectionCard key={index} error={error} />
+            ))}
+          </div>
+        </div>
       )}
     </section>
   );

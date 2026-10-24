@@ -37,6 +37,8 @@ def stop_runtime() -> None:
 
 
 def readiness() -> dict:
+    from app.modules.speaking.pronunciation.engine import capability_readiness
+
     stt_state = stt.readiness()
     llm_state = provider_readiness()
     worker_state = jobs.readiness()
@@ -46,4 +48,7 @@ def readiness() -> dict:
         "stt": stt_state,
         "llm": llm_state,
         "queue": worker_state,
+        # Informational: pronunciation is additive and may not gate core
+        # scoring readiness (disabled default never degrades the core flow).
+        "pronunciation": capability_readiness(),
     }

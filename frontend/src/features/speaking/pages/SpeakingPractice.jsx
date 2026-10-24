@@ -7,7 +7,6 @@ import GrammarErrorList from '../components/GrammarErrorList.jsx';
 import PronunErrorList from '../components/PronunErrorList.jsx';
 import FeedbackFocusCard from '../components/FeedbackFocusCard.jsx';
 import SpeakButton from '../components/SpeakButton.jsx';
-import AssessmentQualityCard from '../components/AssessmentQualityCard.jsx';
 import ModelAnswerCard from '../components/ModelAnswerCard.jsx';
 import {
   AlertCircle, ArrowLeft, ArrowRight, BookOpen, CheckCircle2, ChevronLeft,
@@ -289,24 +288,14 @@ export default function SpeakingPractice() {
               <h1 className="text-3xl font-extrabold tracking-tight text-slate-950">Kết Quả Phân Tích</h1>
               <p className="mt-2 text-sm text-slate-500">{selectedTopic?.name} <span className="mx-1 text-slate-300">/</span> {selectedPart}</p>
             </div>
-            <span className={`w-fit rounded-full px-3.5 py-2 text-xs font-bold ${result.scores.overall != null || result.raw.status === 'scored' ? 'bg-emerald-50 text-emerald-800' : 'bg-amber-50 text-amber-800'}`}>
-              {result.scores.overall != null ? `Band IELTS: ${Number(result.scores.overall).toFixed(1)}` : result.raw.status === 'scored' ? 'Đã chấm điểm' : 'Cần nghe lại'}
+            <span className={`w-fit rounded-full px-3.5 py-2 text-xs font-bold ${result.scores.overall != null || result.raw.status === 'scored' ? 'bg-emerald-50 text-emerald-800' : 'bg-blue-50 text-blue-800'}`}>
+              {result.scores.overall != null ? `Band IELTS: ${Number(result.scores.overall).toFixed(1)}` : 'Đã chấm điểm'}
             </span>
           </header>
 
           <ScoreGrid scores={result.scores} />
 
           <ModelAnswerCard modelAnswer={result.raw.model_answer} upgrader={result.raw.upgrader} />
-
-          {result.raw.status !== 'scored' && result.scores.overall == null && (
-            <div className="flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 text-amber-950">
-              <AlertCircle className="mt-0.5 shrink-0 text-amber-700" size={19} aria-hidden="true" />
-              <div><h2 className="font-bold">{result.raw.status === 'needs_review' ? 'Bài nói cần được xem lại' : 'Chỉ hiển thị tiêu chí đủ bằng chứng'}</h2>
-                <p className="mt-1 text-sm leading-6 text-amber-900/80">{(result.raw.status === 'failed' ? result.raw.fluency?.feedback : result.raw.pronun?.feedback) || 'Một số tiêu chí chưa có đủ bằng chứng để ước lượng band. Xem phản hồi và bước luyện tiếp theo bên dưới.'}</p>
-                {!!result.raw.review_reasons?.length && <p className="mt-2 text-xs leading-5 text-amber-900/70">Mã review: {result.raw.review_reasons.join(' · ')}</p>}
-              </div>
-            </div>
-          )}
 
           <div className="space-y-5">
             <section className="space-y-4">
@@ -323,20 +312,34 @@ export default function SpeakingPractice() {
 
           <section aria-label="Phản hồi theo tiêu chí" className="grid gap-4 md:grid-cols-2">
             {[
-              ['fluency', 'Fluency & Coherence', 'text-blue-700'],
-              ['vocab', 'Lexical Resource', 'text-violet-700'],
-              ['grammar', 'Grammatical Range and Accuracy', 'text-emerald-700'],
-              ['pronun', 'Pronunciation', 'text-amber-700'],
-            ].map(([key, label, color]) => {
+              ['fluency', 'Fluency & Coherence', 'Lưu loát & Mạch lạc', 'border-blue-200/80'],
+              ['vocab', 'Lexical Resource', 'Vốn từ & Diễn đạt', 'border-violet-200/80'],
+              ['grammar', 'Grammatical Range & Accuracy', 'Ngữ pháp & Cấu trúc', 'border-emerald-200/80'],
+              ['pronun', 'Pronunciation', 'Phát âm & Ngữ điệu', 'border-amber-200/80'],
+            ].map(([key, label, viLabel, borderStyle]) => {
               const criterion = result.raw[key];
               return (
-                <article key={key} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
-                  <h3 className={`text-[10px] font-bold uppercase tracking-[.15em] ${color}`}>{label}</h3>
-                  <FeedbackFocusCard review={criterion?.examiner_review} comment={criterion?.feedback || 'Chưa có phản hồi đủ bằng chứng cho tiêu chí này.'} />
+                <article key={key} className={`flex flex-col justify-between rounded-3xl border bg-white p-5 shadow-sm transition hover:shadow-md sm:p-6 ${borderStyle}`}>
+                  <div>
+                    <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-3">
+                      <div>
+                        <h3 className="text-sm font-extrabold text-slate-900">{label}</h3>
+                        <p className="text-xs font-medium text-slate-500">{viLabel}</p>
+                      </div>
+                      {criterion?.band != null && (
+                        <span className="rounded-xl bg-slate-950 px-3 py-1 text-xs font-black text-white shadow-xs">
+                          Band {Number(criterion.band).toFixed(1)}
+                        </span>
+                      )}
+                    </div>
+                    <FeedbackFocusCard review={criterion?.examiner_review} comment={criterion?.feedback || 'Chưa có nhận xét cho tiêu chí này.'} />
+                  </div>
                   {criterion?.next_action_vi && (
-                    <div className="mt-4 rounded-xl bg-blue-50 p-3 text-sm leading-6 text-blue-950">
-                      <p className="font-bold">Bước luyện tiếp theo</p>
-                      <p className="mt-1">{criterion.next_action_vi}</p>
+                    <div className="mt-4 rounded-2xl bg-slate-50/80 p-3.5 text-xs leading-5 text-slate-700 border border-slate-100">
+                      <p className="font-bold text-slate-900 flex items-center gap-1.5">
+                        <Sparkles size={13} className="text-indigo-600" /> Bước luyện tiếp theo
+                      </p>
+                      <p className="mt-1 text-slate-600">{criterion.next_action_vi}</p>
                     </div>
                   )}
                 </article>
@@ -344,9 +347,12 @@ export default function SpeakingPractice() {
             })}
           </section>
 
-          <PronunErrorList problems={result.raw.pronun?.problem_words || []} />
+          <PronunErrorList
+            problems={result.raw.pronun?.problem_words || []}
+            phonemeEvidence={result.raw.pronun?.phoneme_evidence || []}
+            onReplayPhrase={playWord}
+          />
 
-          <AssessmentQualityCard quality={result.raw.assessment_quality} />
           <div className="flex flex-col-reverse gap-3 border-t border-slate-200 pt-5 sm:flex-row sm:justify-between">
             <button type="button" onClick={() => { setStep(2); setResult(null); resetPreparation(); }} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-5 text-sm font-bold text-slate-700 transition hover:bg-slate-50">
               <ArrowLeft size={16} /> Thử lại chủ đề này

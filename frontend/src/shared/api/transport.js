@@ -23,12 +23,23 @@ export async function request(method, path, { json, form, teacher, signal } = {}
   const contentType = response.headers.get("content-type") || "";
 
   if (!response.ok) {
-    let detail = `HTTP ${response.status}`;
+    let detail = "";
     try {
       const data = await response.json();
-      detail = data.detail || detail;
+      detail = data.detail || "";
     } catch {
-      // Keep the HTTP status as the fallback when the response is not JSON.
+      // Non-JSON response fallback
+    }
+    if (!detail) {
+      if (response.status === 405) {
+        detail = "Máy chủ không hỗ trợ phương thức này (HTTP 405). Vui lòng thử lại sau.";
+      } else if (response.status === 502 || response.status === 503 || response.status === 504) {
+        detail = `Không thể kết nối đến máy chủ chấm điểm (HTTP ${response.status}). Vui lòng thử lại sau.`;
+      } else if (response.status === 404) {
+        detail = "Không tìm thấy dữ liệu hoặc máy chủ không phản hồi (HTTP 404).";
+      } else {
+        detail = `Lỗi kết nối máy chủ (HTTP ${response.status}).`;
+      }
     }
     throw new Error(detail);
   }

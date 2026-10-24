@@ -108,6 +108,71 @@ def test_pronunciation_feedback_does_not_invent_timing_when_missing():
     assert result["band"] is None
 
 
+def _valid_artifact(tmp_path):
+    import json
+
+    from scripts.pronunciation.export_artifact import artifact_checksum
+
+    artifact = {
+        "schema_version": "pronunciation-artifact-v1",
+        "artifact_id": "examiner-cal-2026-10",
+        "engine_version": "pronunciation-engine-v1",
+        "feature_version": "pronunciation-features-v1",
+        "calibration_version": "examiner-cal-2026-10",
+        "model_class": "ordinal_regression",
+        "coefficients": {"voiced_coverage": 2.0},
+        "bias": 0.0,
+        "standardization": {"mean": [0.2], "scale": [0.1]},
+        "band_values": [5.0, 6.0],
+        "thresholds": [1.0],
+        "training": {"dataset_ids": ["learn4-pilot-1"], "samples": 10,
+                     "speakers": 10},
+        "metrics": {"status": "passed_release_gate", "mae": 0.3, "qwk": 0.8,
+                    "bias": 0.01, "within_half": 0.9, "coverage": 1.0},
+    }
+    artifact["checksums"] = {"artifact": artifact_checksum(artifact)}
+    path = tmp_path / "artifact.json"
+    path.write_text(json.dumps(artifact, sort_keys=True), encoding="utf-8")
+    return str(path)
+
+
+def test_facade_passes_scored_band_from_enabled_engine(monkeypatch, tmp_path):
+    """Spec 4: enabled mode has a real runtime path artifact -> band -> result."""
+    import math
+    from array import array
+
+    from app.modules.speaking.pronunciation import audio_features as audio_module
+    from app.core.config import settings
+
+    artifact_path = _valid_artifact(tmp_path)
+    monkeypatch.setattr(settings, "pronunciation_mode", "enabled")
+    monkeypatch.setattr(settings, "pronunciation_artifact_path", artifact_path)
+    monkeypatch.setattr(settings, "pronunciation_aligner", "none")
+
+    samples = [int(9000 * math.sin(2 * math.pi * 180 * t / 16000))
+               for t in range(32000)]
+    pcm = audio_module.PcmAudio(array("h", samples), 16000, 2.0)
+    monkeypatch.setattr(audio_module, "load_pcm_mono_16k", lambda path: pcm)
+
+    words = [_w("hello", 0.0, 0.4), _w("world", 0.5, 0.9)]
+    out = assess_pronunciation(
+        audio_path="storage/mock.webm",
+        transcript="hello world",
+        words=words,
+        uncertain_spans=[],
+        asr_confidence=0.9,
+        hallucination_risk=0.0,
+        total_duration_s=1.0,
+    )
+    expected = 6.0 if 2.0 * (out["prosody_features"]["voiced_coverage"] - 0.2) / 0.1 >= 1.0 else 5.0
+    assert out["band"] == expected
+    assert out["band_source"] == "examiner_calibrated_artifact"
+    assert out["confidence"] is None
+    assert out["reason"] is None
+    # no aligner configured: no decode, and the alignment block stays honest
+    assert out["alignment"]["provider"] == "none"
+
+
 def _write_wav(path, samples, sr=16000):
     import array
 

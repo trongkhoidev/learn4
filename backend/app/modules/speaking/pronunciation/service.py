@@ -1,31 +1,25 @@
-"""Audio observations for pronunciation coaching.
+"""Compatibility facade for the pronunciation module.
 
-No forced-alignment / phoneme model is available in this environment, so
-phoneme-level (GOP) evidence is explicitly marked pending. This module provides
-everything that *can* be measured without it:
-
-- prosody features from word timestamps (timing, rhythm, pause structure),
-- waveform energy features when a readable PCM WAV is obtainable,
-- an intelligibility proxy from recognition-uncertainty spans,
-- problem-word filtering: drop LLM claims not present in the transcript and
-  relabel words inside uncertain spans as `asr_uncertain`.
-
-This module does not assign a pronunciation band or phoneme error. Word timing,
-ASR uncertainty, and energy summaries are supporting observations only.
+``assessment/engine.py`` calls ``assess_pronunciation`` exactly as before, but
+the implementation now delegates to a single ``PronunciationEngine`` interface
+(see ``engine.py``). This file owns no scoring logic and must not grow one.
 """
 
 import array
 import logging
 import math
+import statistics
 import wave
+
+from app.core.config import settings
+
+from . import policy
+from .contracts import PronunciationRequest, WordTiming
+from .engine import get_engine
 
 logger = logging.getLogger(__name__)
 
-BAND_SOURCE = "unavailable_no_validated_pronunciation_model"
-
-
-def _norm_token(w: str) -> str:
-    return (w or "").strip().lower().strip(".,!?;:\"'()[]")
+BAND_SOURCE = policy.BAND_SOURCE_UNAVAILABLE
 
 
 def analyze_prosody(words, total_duration_s: float) -> dict:
@@ -53,7 +47,6 @@ def analyze_prosody(words, total_duration_s: float) -> dict:
     n = len(words or [])
     if not timed or n == 0 or not total_duration_s or total_duration_s <= 0:
         return empty
-    import statistics
 
     mean_d = statistics.fmean(timed)
     std_d = statistics.pstdev(timed) if len(timed) > 1 else 0.0
@@ -160,6 +153,10 @@ def _norm_word(w: str) -> str:
     return _norm_token(w)
 
 
+def _norm_token(w: str) -> str:
+    return (w or "").strip().lower().strip(".,!?;:\"'()[]")
+
+
 def filter_problem_words(problem_words, transcript: str, uncertain_spans) -> list:
     """Keep only transcript-grounded claims; relabel ASR-doubtful words.
 
@@ -203,45 +200,112 @@ def assess_pronunciation(audio_path=None, transcript: str = "", words=None,
                          hallucination_risk: float = 0.0,
                          total_duration_s: float = 0.0,
                          llm_band: float = 0.0, llm_problem_words=None) -> dict:
-    """Return only evidence available without a validated pronunciation model."""
-    try:
-        asr_c = max(0.0, min(1.0, float(asr_confidence or 0.0)))
-    except (TypeError, ValueError):
-        asr_c = 0.0
-    prosody = analyze_prosody(words, total_duration_s)
+    """Facade: build a request and delegate to the configured engine."""
+    del llm_band, llm_problem_words  # never a band source
+    timed_words = [
+        {"id": w.get("id") or f"w{index}", "word": w.get("word", ""),
+         "start": w.get("start"), "end": w.get("end")}
+        for index, w in enumerate(words or [], start=1)
+        if w.get("start") is not None and w.get("end") is not None
+        and float(w.get("end") or 0) > float(w.get("start") or 0)
+    ]
+    uncertain_ids = {
+        str(span.get("word_id")) for span in (uncertain_spans or []) if span.get("word_id")
+    }
+    request = PronunciationRequest(
+        audio_path=audio_path or "missing",
+        transcript=transcript or "",
+        words=[
+            WordTiming.model_validate({
+                "id": item["id"], "word": item["word"] or "-",
+                "start": float(item["start"]), "end": float(item["end"]),
+            })
+            for item in timed_words
+        ],
+        asr_uncertain_word_ids=sorted(uncertain_ids),
+        asr_confidence=asr_confidence,
+        task_metadata={"hallucination_risk": hallucination_risk},
+    )
 
-    energy = {}
-    if audio_path:
-        # Normalize a private copy for energy analysis; never touch the input.
-        try:
-            from app.integrations.audio.processor import normalize_audio_to_wav
+    # One alignment call per assessment, before the engine so real phone
+    # timings can drive phone evidence (plan E2). No aligner configured means
+    # no decode happens here and no phone layer is claimed.
+    from app.modules.speaking.pronunciation import alignment as alignment_service
 
-            tmp_wav = normalize_audio_to_wav(audio_path)
+    aligner = (settings.pronunciation_aligner or "none").lower()
+    alignment = alignment_service.align(audio_path, transcript) \
+        if audio_path and aligner != "none" \
+        and (transcript or "").strip() else {
+            "status": "unavailable", "provider": "none", "reason": "disabled",
+        }
+    request.alignment = {
+        "provider": alignment.get("provider", "none"),
+        "words": alignment.get("words") or [],
+        "phones": alignment.get("phones") or [],
+        "coverage": alignment.get("coverage", 0.0),
+        "declares_phone_alignment": bool(alignment.get("declares_phone_alignment")),
+        "calibrated": False,
+    }
+
+    engine_result = get_engine().assess(request)
+    assessment = engine_result.model_dump(mode="json")
+
+    # The shadow and enabled engines both decode the audio once: reuse their
+    # prosody and energy-derived gates instead of running a second analysis
+    # path. The disabled engine leaves the prosody block to legacy code.
+    engine_prosody = assessment.get("prosody_features") or {}
+    engine_ran = isinstance(engine_prosody, dict) and "feature_version" in engine_prosody
+    if engine_ran:
+        prosody_features = dict(engine_prosody)
+        gates = dict(assessment.get("quality_gates") or {})
+        energy = {
+            "low_energy_ratio": gates.get("low_energy_ratio"),
+            "clipping_ratio": gates.get("clipping_ratio"),
+            "snr_proxy_db": gates.get("snr_proxy_db"),
+        }
+    else:
+        prosody_features = analyze_prosody(words, total_duration_s)
+        energy = {}
+        if audio_path:
+            # Normalize a private copy for energy analysis; never touch the input.
             try:
-                energy = analyze_waveform_energy(tmp_wav)
-            finally:
-                import os
+                from app.integrations.audio.processor import normalize_audio_to_wav
 
+                tmp_wav = normalize_audio_to_wav(audio_path)
                 try:
-                    os.remove(tmp_wav)
-                except OSError:
-                    pass
-        except Exception as exc:
-            logger.debug("pronunciation energy analysis skipped: %s", exc)
+                    energy = analyze_waveform_energy(tmp_wav)
+                finally:
+                    import os
+
+                    try:
+                        os.remove(tmp_wav)
+                    except OSError:
+                        pass
+            except Exception as exc:
+                logger.debug("pronunciation energy analysis skipped: %s", exc)
 
     intel = intelligibility_proxy(transcript, uncertain_spans, hallucination_risk)
-    from app.modules.speaking.pronunciation import alignment as alignment_service
-    alignment = alignment_service.align(audio_path, transcript)
     word_count = max(1, len((transcript or "").split()))
     is_high_uncertainty = len(uncertain_spans or []) / word_count > 0.30
     evidence_quality = decide_evidence_quality(
-        asr_c, is_high_uncertainty, intel["score"], prosody.get("coverage", 0.0)
+        asr_confidence, is_high_uncertainty, intel["score"], prosody_features.get("coverage", 0.0)
     )
     observations = []
-    if prosody["coverage"] > 0:
+    legacy_coverage = prosody_features.get("coverage")
+    if legacy_coverage is not None:
+        if legacy_coverage > 0:
+            observations.append(
+                f"Mốc thời gian ghi nhận {prosody_features.get('long_pauses', 0)} khoảng nghỉ "
+                "trên 1 giây giữa các từ; cần nghe lại theo cụm ý để xác định đó là ngắt nghỉ "
+                "tự nhiên hay ngập ngừng."
+            )
+        else:
+            observations.append("Mốc thời gian chưa đủ để nhận xét nhịp nói trong bản ghi này.")
+    elif prosody_features.get("pause_ratio") is not None:
         observations.append(
-            f"Mốc thời gian ghi nhận {prosody['long_pauses']} khoảng nghỉ trên 1 giây "
-            "giữa các từ; cần nghe lại theo cụm ý để xác định đó là ngắt nghỉ tự nhiên hay ngập ngừng."
+            f"Mốc thời gian ghi nhận {prosody_features.get('long_pause_count', 0)} khoảng nghỉ "
+            f"dài, tỉ lệ nghỉ {prosody_features['pause_ratio']} trên tổng thời lượng; cần nghe "
+            "lại theo cụm ý để xác định đó là ngắt nghỉ tự nhiên hay ngập ngừng."
         )
     else:
         observations.append("Mốc thời gian chưa đủ để nhận xét nhịp nói trong bản ghi này.")
@@ -252,24 +316,30 @@ def assess_pronunciation(audio_path=None, transcript: str = "", words=None,
         )
     if energy.get("clipping_ratio", 0) > 0.01:
         observations.append("Bản ghi có dấu hiệu vỡ tiếng; hãy giảm âm lượng hoặc đặt micro xa hơn.")
-    observations.append("Chưa đủ bằng chứng âm vị để kết luận lỗi từng âm, trọng âm hoặc band phát âm.")
-    next_action = (
-        "Bấm nghe lại các từ viền vàng, xác nhận lời đã nói rồi ghi âm lại cả cụm trong ngữ cảnh."
-        if uncertain_spans else
-        "Chọn một câu trong bản ghi, nghe lại chỗ ngắt cụm rồi đọc lại và so sánh với audio mẫu."
-    )
+    observations.append(engine_result.feedback or
+                        "Chưa đủ bằng chứng âm vị để kết luận lỗi từng âm, trọng âm hoặc band phát âm.")
+    scored = engine_result.status == "scored" and engine_result.band is not None
     return {
-        "band": None,
-        "band_source": BAND_SOURCE,
-        "confidence": None,
+        "band": float(engine_result.band) if scored else None,
+        "band_source": (
+            engine_result.band_source if scored else BAND_SOURCE
+        ),
+        "confidence": (float(engine_result.confidence) if scored
+                       and engine_result.confidence is not None else None),
         "evidence_quality": evidence_quality,
-        "prosody_features": prosody,
+        "prosody_features": prosody_features,
         "energy_features": energy,
         "intelligibility": intel,
         "problem_words": [],
-        "reason": "No validated pronunciation-to-band or phoneme-error engine is available.",
-        "phoneme_evidence": [],
+        "reason": (engine_result.reason if scored
+                   else engine_result.reason or policy.REASON_NO_VALIDATED_ENGINE),
+        "phoneme_evidence": assessment["phoneme_evidence"],
         "alignment": alignment,
         "feedback": " ".join(observations),
-        "next_action_vi": next_action,
+        "next_action_vi": assessment["next_action_vi"] or (
+            "Bấm nghe lại các từ viền vàng, xác nhận lời đã nói rồi ghi âm lại cả cụm trong ngữ cảnh."
+            if uncertain_spans else
+            "Chọn một câu trong bản ghi, nghe lại chỗ ngắt cụm rồi đọc lại và so sánh với audio mẫu."
+        ),
+        "shadow_evidence": assessment if engine_result.shadow else None,
     }

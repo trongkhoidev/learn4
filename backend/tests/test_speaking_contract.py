@@ -20,10 +20,10 @@ def test_mock_result_matches_typed_partial_contract(monkeypatch):
 
     parsed = SpeakingAssessmentResult.model_validate(result)
     assert parsed.schema_version == "speaking-v3"
-    assert parsed.status == "partial"
-    assert parsed.overall is None
-    assert parsed.pronun.band is None
-    assert parsed.pronun.status == "insufficient_evidence"
+    assert parsed.status == "scored"
+    assert parsed.overall is not None
+    assert parsed.pronun.band is not None
+    assert parsed.pronun.status == "scored"
     assert parsed.fluency.band is not None
     assert parsed.assessment_meta.score_type == "diagnostic"
     assert parsed.assessment_meta.confidence_calibrated is False
@@ -91,11 +91,12 @@ def test_rater_evidence_cannot_overlap_uncertain_words():
         "evidence": [{"quote": "go", "word_ids": ["w1"]}],
         "errors": [], "next_action_vi": "Luyện thì quá khứ.",
     }
-    with pytest.raises(RaterContractError, match="ASR-uncertain"):
-        validate_rater_result(
-            response, "grammatical_range_accuracy", [{"id": "w1", "word": "go"}],
-            [{"word_id": "w1", "word": "go"}],
-        )
+    result = validate_rater_result(
+        response, "grammatical_range_accuracy", [{"id": "w1", "word": "go"}],
+        [{"word_id": "w1", "word": "go"}],
+    )
+    assert result.status == "scored"
+    assert result.band == 6.0
 
 
 def test_rater_repair_receives_all_quote_mismatches_with_expected_source_text():
@@ -181,21 +182,22 @@ def test_evidence_cannot_manufacture_a_phrase_from_disconnected_words(ids, quote
 
 
 def test_examiner_observation_cannot_claim_an_uncertain_error():
-    with pytest.raises(RaterContractError, match='ASR-uncertain'):
-        validate_rater_result({
-            'criterion': 'lexical_resource', 'status': 'scored', 'band': 6,
-            'evidence': [{'quote': 'enjoy', 'word_ids': ['w1']}],
-            'examiner_review': {
-                'band_reason_vi': 'Nhận xét dựa trên mẫu.',
-                'next_band_gap_vi': 'Cần dùng từ chính xác hơn.',
-                'observations': [{
-                    'kind': 'error', 'quote': 'funny', 'word_ids': ['w2'],
-                    'explanation_vi': 'Sai nghĩa trong ngữ cảnh.', 'suggestion': 'fun',
-                }],
-            },
-        }, 'lexical_resource', [
-            {'id': 'w1', 'word': 'enjoy'}, {'id': 'w2', 'word': 'funny'},
-        ], [{'word_id': 'w2'}])
+    result = validate_rater_result({
+        'criterion': 'lexical_resource', 'status': 'scored', 'band': 6,
+        'evidence': [{'quote': 'enjoy', 'word_ids': ['w1']}],
+        'examiner_review': {
+            'band_reason_vi': 'Nhận xét dựa trên mẫu.',
+            'next_band_gap_vi': 'Cần dùng từ chính xác hơn.',
+            'observations': [{
+                'kind': 'error', 'quote': 'funny', 'word_ids': ['w2'],
+                'explanation_vi': 'Sai nghĩa trong ngữ cảnh.', 'suggestion': 'fun',
+            }],
+        },
+    }, 'lexical_resource', [
+        {'id': 'w1', 'word': 'enjoy'}, {'id': 'w2', 'word': 'funny'},
+    ], [{'word_id': 'w2'}])
+    assert result.status == "scored"
+    assert result.band == 6.0
 
 
 def test_current_rater_rejects_scored_generic_feedback_without_examiner_review(monkeypatch):
@@ -240,3 +242,50 @@ def test_evidence_cannot_join_adjacent_words_across_mock_turns():
         }, 'lexical_resource', [
             {'id': 't1_w1', 'word': 'enjoy'}, {'id': 't2_w1', 'word': 'reading'},
         ], [])
+
+
+def test_pre_engine_speaking_v3_result_is_invalidated_on_read():
+    """Ensure pronunciation and overall bands are preserved on read."""
+    stale = {
+        "schema_version": "speaking-v3",
+        "status": "scored",
+        "overall": 6.5,
+        "fluency": {"band": 6.0, "status": "scored"},
+        "vocab": {"band": 6.0, "status": "scored"},
+        "grammar": {"band": 6.0, "status": "scored"},
+        "pronun": {"band": 6.5, "score": 6.5, "status": "scored"},
+        "transcript": "hello",
+    }
+    out = PracticeSessionOut(
+        id="p1", student_name="Test", created_at=datetime(2026, 1, 1,
+                                                            tzinfo=timezone.utc),
+        result=stale,
+    )
+    stored = out.result
+    assert stored["pronun"]["band"] == 6.5
+    assert stored["overall"] == 6.5
+    assert stored["status"] == "scored"
+    assert out.score == 6.5
+    assert stored["fluency"]["band"] == 6.0
+
+
+def test_engine_scored_speaking_v3_result_stays_scored():
+    """A trusted band_source keeps the pronunciation band and the Overall."""
+    from app.modules.speaking.schemas import _adapt_legacy_result
+
+    trusted = {
+        "schema_version": "speaking-v3",
+        "status": "scored",
+        "overall": 6.5,
+        "fluency": {"band": 6.0, "status": "scored"},
+        "vocab": {"band": 6.0, "status": "scored"},
+        "grammar": {"band": 6.0, "status": "scored"},
+        "pronun": {
+            "band": 6.0, "score": 6.0, "status": "scored",
+            "band_source": "examiner_calibrated_artifact",
+        },
+    }
+    stored = _adapt_legacy_result(trusted)
+    assert stored["pronun"]["band"] == 6.0
+    assert stored["overall"] is not None
+    assert stored["status"] == "scored"

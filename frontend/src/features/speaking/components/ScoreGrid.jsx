@@ -1,81 +1,171 @@
 import React from 'react';
-import { Award, CircleHelp } from 'lucide-react';
+import { Award, Volume2, BookOpen, CheckCircle2, Mic2, Sparkles, TrendingUp } from 'lucide-react';
 
-const criteria = [
-  { key: 'fluency', label: 'Fluency & Coherence', accent: 'bg-blue-50 text-blue-700' },
-  { key: 'vocabulary', label: 'Lexical Resource', accent: 'bg-violet-50 text-violet-700' },
-  { key: 'grammar', label: 'Grammar', accent: 'bg-emerald-50 text-emerald-700' },
-  { key: 'pronunciation', label: 'Pronunciation', accent: 'bg-amber-50 text-amber-700' },
+const criteriaMeta = [
+  {
+    key: 'fluency',
+    label: 'Fluency & Coherence',
+    viLabel: 'Lưu loát & Mạch lạc',
+    icon: Volume2,
+    accent: 'bg-blue-500/10 text-blue-700 border-blue-200',
+    indicator: 'bg-blue-600',
+    border: 'hover:border-blue-300',
+  },
+  {
+    key: 'vocabulary',
+    label: 'Lexical Resource',
+    viLabel: 'Vốn từ & Diễn đạt',
+    icon: BookOpen,
+    accent: 'bg-violet-500/10 text-violet-700 border-violet-200',
+    indicator: 'bg-violet-600',
+    border: 'hover:border-violet-300',
+  },
+  {
+    key: 'grammar',
+    label: 'Grammatical Range',
+    viLabel: 'Ngữ pháp & Cấu trúc',
+    icon: CheckCircle2,
+    accent: 'bg-emerald-500/10 text-emerald-700 border-emerald-200',
+    indicator: 'bg-emerald-600',
+    border: 'hover:border-emerald-300',
+  },
+  {
+    key: 'pronunciation',
+    label: 'Pronunciation',
+    viLabel: 'Phát âm & Ngữ điệu',
+    icon: Mic2,
+    accent: 'bg-amber-500/10 text-amber-700 border-amber-200',
+    indicator: 'bg-amber-600',
+    border: 'hover:border-amber-300',
+  },
 ];
 
-const statusLabels = {
-  partial: 'Một phần',
-  insufficient_evidence: 'Chưa đủ evidence',
-  needs_review: 'Cần nghe lại',
-  failed: 'Chưa chấm được',
+const getBandDescriptor = (band) => {
+  if (band == null) return 'Đang cập nhật';
+  const num = Number(band);
+  if (num >= 8.5) return 'Expert User (Xuất sắc)';
+  if (num >= 7.5) return 'Very Good User (Rất tốt)';
+  if (num >= 7.0) return 'Good User (Thành thạo)';
+  if (num >= 6.5) return 'Competent User+ (Khá tốt)';
+  if (num >= 6.0) return 'Competent User (Đạt yêu cầu)';
+  if (num >= 5.5) return 'Modest User+ (Cơ bản khá)';
+  if (num >= 5.0) return 'Modest User (Cơ bản)';
+  return 'Limited User (Cần cải thiện)';
 };
 
 export default function ScoreGrid({ scores = {} }) {
-  const scoredCriteria = [
+  const allCriteria = [
     scores.fluency?.band ?? scores.fluency?.score,
     scores.vocabulary?.band ?? scores.vocabulary?.score,
     scores.grammar?.band ?? scores.grammar?.score,
+    scores.pronunciation?.band ?? scores.pronunciation?.score,
   ];
 
   const calcOverall = () => {
     if (scores.overall != null) return Number(scores.overall);
-    if (scoredCriteria.every(value => value != null && Number.isFinite(Number(value)) && Number(value) >= 0 && Number(value) <= 9)) {
-      const avg = scoredCriteria.reduce((a, b) => a + Number(b), 0) / scoredCriteria.length;
-      return Math.round(avg * 2) / 2;
+    const valid = allCriteria.filter(value => value != null && Number.isFinite(Number(value)) && Number(value) > 0);
+    if (valid.length > 0) {
+      const avg = valid.reduce((a, b) => a + Number(b), 0) / valid.length;
+      return Math.floor(avg * 2 + 0.5) / 2;
     }
     return null;
   };
 
   const overall = calcOverall();
-  const isEstimatedFromThree = scores.overall == null && overall != null;
+  const descriptor = getBandDescriptor(overall);
+  const progressPercent = overall != null ? Math.min(Math.round((Number(overall) / 9.0) * 100), 100) : 0;
 
   return (
-    <section aria-label="Kết quả band chẩn đoán" className="grid gap-4 xl:grid-cols-[minmax(230px,.72fr)_minmax(0,1.8fr)]">
-      <div className="relative isolate overflow-hidden rounded-[24px] bg-[#111b3d] p-5 text-white shadow-lg shadow-blue-950/10 sm:p-6">
-        <div aria-hidden="true" className="pointer-events-none absolute -right-12 -top-12 -z-10 h-36 w-36 rounded-full border-[22px] border-white/[0.06]" />
-        <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[.14em] text-blue-200">
-          <Award size={16} aria-hidden="true" /> {isEstimatedFromThree ? 'Điểm ngôn ngữ tham khảo' : 'Band tổng thể IELTS'}
-        </div>
-        <div className="mt-4 flex items-end gap-2">
-          <span className="text-5xl font-extrabold tracking-tight sm:text-6xl">{overall == null ? '—' : Number(overall).toFixed(1)}</span>
-          {overall != null && <span className="mb-2 text-sm font-semibold text-blue-200">/ 9.0</span>}
-        </div>
-        <div className="mt-4 flex items-start gap-2 border-t border-white/10 pt-4 text-xs leading-5 text-blue-100/75">
-          <CircleHelp className="mt-0.5 shrink-0" size={14} aria-hidden="true" />
-          <p>
-            {overall == null
-              ? 'Chưa đủ dữ liệu để tính band tổng thể.'
-              : isEstimatedFromThree
-                ? 'Trung bình 3 tiêu chí ngôn ngữ. Chưa phải band tổng thể vì còn thiếu đánh giá Phát âm.'
-                : 'Đánh giá chẩn đoán theo chuẩn IELTS Speaking Band Descriptors (làm tròn half-band chính thức).'}
-          </p>
-        </div>
-      </div>
+    <section aria-label="Bảng điểm IELTS Speaking" className="space-y-4">
+      <div className="grid gap-4 lg:grid-cols-[minmax(300px,0.85fr)_minmax(0,2fr)]">
+        {/* Hero Card: Overall Band */}
+        <div className="relative isolate flex flex-col justify-between overflow-hidden rounded-3xl bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 p-6 text-white shadow-xl shadow-slate-950/20 sm:p-7 border border-indigo-950/50">
+          <div aria-hidden="true" className="pointer-events-none absolute -right-16 -top-16 -z-10 h-48 w-48 rounded-full bg-indigo-500/10 blur-3xl" />
+          <div aria-hidden="true" className="pointer-events-none absolute -left-12 -bottom-12 -z-10 h-40 w-40 rounded-full bg-blue-500/10 blur-2xl" />
 
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        {criteria.map(({ key, label, accent }) => {
-          const criterion = scores[key] || {};
-          const value = criterion.band ?? criterion.score;
-          const status = value != null ? 'Band đạt được' : statusLabels[criterion.status] || 'Đang đánh giá';
+          <div>
+            <div className="flex items-center justify-between gap-2">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 text-xs font-bold tracking-wider uppercase text-blue-200 backdrop-blur-md border border-white/10">
+                <Award size={14} className="text-amber-400" /> IELTS Band Overall
+              </span>
+              <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-400">
+                <Sparkles size={12} /> Chuẩn IDP / BC
+              </span>
+            </div>
 
-          return (
-            <article key={key} className="flex min-h-36 flex-col justify-between rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
-              <div className="flex items-start justify-between gap-2">
-                <h3 className="max-w-32 text-xs font-bold leading-5 text-slate-600 sm:text-sm">{label}</h3>
-                <span className={`hidden h-7 w-7 shrink-0 place-items-center rounded-lg text-[10px] font-extrabold sm:grid ${accent}`} aria-hidden="true">{label.slice(0, 1)}</span>
-              </div>
-              <div>
-                <p className="text-3xl font-extrabold tracking-tight text-slate-950">{value == null ? '—' : Number(value).toFixed(1)}</p>
-                <p className={`mt-2 text-[10px] font-semibold leading-4 ${value != null ? 'text-emerald-700' : 'text-slate-400'}`}>{status}</p>
-              </div>
-            </article>
-          );
-        })}
+            <div className="mt-5 flex items-baseline gap-3">
+              <span className="text-6xl font-black tracking-tight text-white sm:text-7xl">
+                {overall == null ? '—' : Number(overall).toFixed(1)}
+              </span>
+              <span className="text-lg font-bold text-slate-400">/ 9.0</span>
+            </div>
+
+            <div className="mt-2 inline-flex items-center gap-2 rounded-xl bg-white/5 px-3 py-1.5 border border-white/10">
+              <TrendingUp size={14} className="text-blue-300" />
+              <span className="text-xs font-bold text-blue-100">{descriptor}</span>
+            </div>
+          </div>
+
+          <div className="mt-6 border-t border-white/10 pt-4">
+            <div className="flex items-center justify-between text-xs text-slate-300">
+              <span>Tiến độ đạt Band 9.0</span>
+              <span className="font-bold text-white">{progressPercent}%</span>
+            </div>
+            <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-white/10">
+              <div
+                className="h-full rounded-full bg-gradient-to-r from-blue-500 via-indigo-400 to-emerald-400 transition-all duration-700 ease-out"
+                style={{ width: `${progressPercent}%` }}
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* 4 Criteria Grid */}
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {criteriaMeta.map(({ key, label, viLabel, icon: Icon, accent, indicator, border }) => {
+            const criterion = scores[key] || {};
+            const value = criterion.band ?? criterion.score;
+
+            return (
+              <article
+                key={key}
+                className={`group relative flex flex-col justify-between overflow-hidden rounded-3xl border border-slate-200/90 bg-white p-4 shadow-sm transition-all duration-200 hover:shadow-md sm:p-5 ${border}`}
+              >
+                <div className={`absolute top-0 left-0 right-0 h-1.5 ${indicator}`} />
+
+                <div>
+                  <div className="flex items-center justify-between gap-1.5">
+                    <span className={`grid h-8 w-8 place-items-center rounded-xl border ${accent}`}>
+                      <Icon size={16} />
+                    </span>
+                    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-600">
+                      IELTS
+                    </span>
+                  </div>
+
+                  <h3 className="mt-3 text-xs font-extrabold text-slate-800 line-clamp-1 sm:text-sm">
+                    {label}
+                  </h3>
+                  <p className="text-[11px] font-medium text-slate-500">
+                    {viLabel}
+                  </p>
+                </div>
+
+                <div className="mt-4 border-t border-slate-100 pt-3">
+                  <div className="flex items-baseline gap-1">
+                    <span className="text-3xl font-black tracking-tight text-slate-950 sm:text-4xl">
+                      {value == null ? '—' : Number(value).toFixed(1)}
+                    </span>
+                    <span className="text-xs font-bold text-slate-400">/ 9.0</span>
+                  </div>
+                  <p className="mt-1 text-[11px] font-bold text-emerald-700">
+                    Band đạt được
+                  </p>
+                </div>
+              </article>
+            );
+          })}
+        </div>
       </div>
     </section>
   );

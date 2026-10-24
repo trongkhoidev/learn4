@@ -93,6 +93,7 @@ export function usePracticeController(routeTopicId) {
       if (controller.signal.aborted) return;
       console.error(error);
       setTopics(fallbackTopics(false));
+      setError("Không thể kết nối với máy chủ chấm điểm. Đang sử dụng chủ đề ngoại tuyến tạm thời.");
     });
     return () => controller.abort();
   }, [routeTopicId]);
