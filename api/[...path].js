@@ -4,7 +4,8 @@ export const config = {
 
 export default async function handler(req) {
   const url = new URL(req.url);
-  const backendBase = "https://measureless-trogonoid-marisha.ngrok-free.dev";
+  const rawBackendBase = process.env.BACKEND_URL || "https://measureless-trogonoid-marisha.ngrok-free.dev";
+  const backendBase = rawBackendBase.replace(/\/+$/, "");
 
   let pathname = url.pathname;
   if (pathname.includes("[...path]")) {
@@ -13,10 +14,11 @@ export default async function handler(req) {
   }
 
   const targetUrl = `${backendBase}${pathname}${url.search}`;
+  const targetHost = new URL(backendBase).host;
 
   const headers = new Headers(req.headers);
   headers.set("ngrok-skip-browser-warning", "true");
-  headers.set("host", "measureless-trogonoid-marisha.ngrok-free.dev");
+  headers.set("host", targetHost);
 
   const options = {
     method: req.method,
