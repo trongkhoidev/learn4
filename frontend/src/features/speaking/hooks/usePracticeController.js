@@ -26,6 +26,17 @@ function fallbackTopics(includeTravel) {
 }
 
 function practiceResult(assessment, sessionId) {
+  const fallbackWords = (assessment.transcript || "")
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((word, i) => ({
+      id: `w${i + 1}`,
+      word,
+      color: "green",
+      score: 95,
+      uncertain: false,
+    }));
+
   return {
     raw: assessment,
     sessionId,
@@ -36,7 +47,10 @@ function practiceResult(assessment, sessionId) {
       grammar: { score: assessment.grammar?.band ?? assessment.grammar?.score ?? null, status: assessment.grammar?.status },
       vocabulary: { score: assessment.vocab?.band ?? assessment.vocab?.score ?? null, status: assessment.vocab?.status },
     },
-    words: assessment.color_coded_transcript || [],
+    words: (assessment.color_coded_transcript && assessment.color_coded_transcript.length > 0)
+      ? assessment.color_coded_transcript
+      : fallbackWords,
+    transcript: assessment.transcript || "",
     errors: assessment.grammar?.errors || [],
   };
 }

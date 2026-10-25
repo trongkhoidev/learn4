@@ -305,7 +305,13 @@ export default function SpeakingPractice() {
                   <audio ref={audioRef} controls src={recordingUrl} className="w-full" />
                 </div>
               )}
-              <WordHighlighter words={result.words} review={result.raw.transcript_review} onWordClick={playWord} onReviewDecision={saveReviewDecision} />
+              <WordHighlighter
+                words={result.words}
+                transcript={result.transcript || result.raw?.transcript}
+                review={result.raw?.transcript_review}
+                onWordClick={playWord}
+                onReviewDecision={saveReviewDecision}
+              />
             </section>
             <GrammarErrorList errors={result.errors} status={result.raw.grammar?.status} />
           </div>

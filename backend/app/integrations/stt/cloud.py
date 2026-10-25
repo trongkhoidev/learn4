@@ -3,6 +3,7 @@
 import base64
 import math
 import mimetypes
+import re
 from pathlib import Path
 
 import httpx
@@ -21,15 +22,59 @@ def _bounded_probability(value, default=None):
         return default
 
 
+# Comprehensive dictionary of Vietnamese locations, provinces, cities, landmarks & proper names
+# to ensure high-accuracy recognition and prevent dropping or misrecognizing proper names.
+DEFAULT_VIETNAM_KEYTERMS = [
+    # All 63 Provinces & Municipalities in Vietnam
+    "Hanoi", "Ho Chi Minh City", "Saigon", "Da Nang", "Hai Phong", "Can Tho",
+    "Quang Tri", "Quang Nam", "Hue", "Thua Thien Hue", "Quang Binh", "Quang Ngai",
+    "Nha Trang", "Khanh Hoa", "Da Lat", "Lam Dong", "Vung Tau", "Ba Ria - Vung Tau",
+    "Binh Duong", "Dong Nai", "Binh Phuoc", "Tay Ninh", "Binh Thuan", "Ninh Thuan",
+    "Phu Yen", "Binh Dinh", "Gia Lai", "Kon Tum", "Dak Lak", "Dak Nong",
+    "Long An", "Tien Giang", "Ben Tre", "Tra Vinh", "Vinh Long", "Dong Thap",
+    "An Giang", "Kien Giang", "Phu Quoc", "Ca Mau", "Bac Lieu", "Soc Trang", "Hau Giang",
+    "Thanh Hoa", "Nghe An", "Vinh", "Ha Tinh", "Ninh Binh", "Nam Dinh", "Ha Nam",
+    "Thai Binh", "Hung Yen", "Hai Duong", "Bac Ninh", "Bac Giang", "Vinh Phuc",
+    "Phu Tho", "Thai Nguyen", "Tuyen Quang", "Ha Giang", "Cao Bang", "Bac Kan",
+    "Lang Son", "Lao Cai", "Sa Pa", "Yen Bai", "Dien Bien", "Lai Chau", "Son La",
+    "Hoa Binh", "Quang Ninh", "Ha Long",
+    # Academic & Landmark proper names
+    "Vietnam", "Vietnamese", "Hanoi University", "Bach Khoa", "National University",
+    "Foreign Trade University", "RMIT Vietnam",
+]
+
+
+def _merge_keyterms(keyterms: list[str] | None) -> list[str]:
+    merged = []
+    seen = set()
+    for term in list(keyterms or []) + DEFAULT_VIETNAM_KEYTERMS:
+        clean = str(term).strip()
+        if clean and clean.lower() not in seen:
+            seen.add(clean.lower())
+            merged.append(clean)
+    return merged[:100]
+
+
+def _clean_punctuation_anomalies(text: str) -> str:
+    """Clean duplicate or misplaced punctuation like 'hometown,.' without removing words."""
+    if not text:
+        return ""
+    cleaned = re.sub(r'[,;:]+\s*\.', '.', text)
+    cleaned = re.sub(r'\s+([,.;?!])', r'\1', cleaned)
+    cleaned = re.sub(r'([.?!])\s*[,;:]+', r'\1', cleaned)
+    return cleaned.strip()
+
+
 def transcribe_cloudflare(audio_path, *, keyterms=None) -> dict:
     """Transcribe English through the protected Workers AI Whisper endpoint."""
     if not settings.cloudflare_worker_url or not settings.cloudflare_worker_token:
         raise CloudSTTError("Cloudflare Workers AI is not configured")
     path = Path(audio_path)
     content_type = mimetypes.guess_type(path.name)[0] or "application/octet-stream"
-    prompt = "English IELTS speaking. Preserve fillers, repetitions and grammar exactly."
-    if keyterms:
-        prompt += " Names and places that may occur: " + ", ".join(keyterms[:100])
+    effective_keyterms = _merge_keyterms(keyterms)
+    prompt = "English IELTS speaking in Vietnam. Preserve proper names, cities (such as Hanoi, Da Nang, Quang Tri, Ho Chi Minh City, Hue), fillers, repetitions and grammar exactly."
+    if effective_keyterms:
+        prompt += " Geographic names and places that may occur: " + ", ".join(effective_keyterms[:80])
     encoded_prompt = base64.b64encode(prompt[:1800].encode("utf-8")).decode("ascii")
     url = settings.cloudflare_worker_url.rstrip("/") + "/transcribe"
     with open(path, "rb") as audio, httpx.Client(timeout=settings.stt_remote_timeout_seconds) as client:
@@ -65,8 +110,10 @@ def transcribe_cloudflare(audio_path, *, keyterms=None) -> dict:
             if isinstance(word, dict)
         ]
     for word in raw_words:
+        raw_w = str(word.get("word", "")).strip()
+        clean_w = _clean_punctuation_anomalies(raw_w)
         words.append({
-            "word": word.get("word", ""),
+            "word": clean_w or raw_w,
             "start": word.get("start", 0.0),
             "end": word.get("end", 0.0),
             # Workers AI does not expose calibrated per-word confidence.
@@ -87,8 +134,9 @@ def transcribe_cloudflare(audio_path, *, keyterms=None) -> dict:
             duration = max(float(words[-1].get("end") or 0.0), float(duration or 0.0))
         segments = [{"start": 0.0, "end": duration or 0.0}]
 
+    raw_text = payload.get("text") or ""
     return {
-        "text": payload.get("text") or "",
+        "text": _clean_punctuation_anomalies(raw_text),
         "words": words,
         "segments": segments,
         # No provider confidence is fabricated; recognition.py derives a
@@ -108,6 +156,7 @@ def transcribe_deepgram(audio_path, *, keyterms=None) -> dict:
     """Transcribe verbatim English with Nova-3 and provider-native confidence."""
     if not settings.deepgram_api_key:
         raise CloudSTTError("Deepgram API key is not configured")
+    effective_keyterms = _merge_keyterms(keyterms)
     params = [
         ("model", settings.deepgram_stt_model),
         ("language", "en"),
@@ -115,7 +164,7 @@ def transcribe_deepgram(audio_path, *, keyterms=None) -> dict:
         ("punctuate", "true"),
         ("filler_words", "true"),
     ]
-    params.extend(("keyterm", term) for term in (keyterms or [])[:100])
+    params.extend(("keyterm", term) for term in effective_keyterms[:100])
     content_type = mimetypes.guess_type(str(audio_path))[0] or "application/octet-stream"
     with open(audio_path, "rb") as audio, httpx.Client(timeout=settings.stt_remote_timeout_seconds) as client:
         response = client.post(
@@ -134,20 +183,25 @@ def transcribe_deepgram(audio_path, *, keyterms=None) -> dict:
     except (httpx.HTTPError, KeyError, IndexError, TypeError, ValueError) as exc:
         detail = response.text[:300] if response is not None else ""
         raise CloudSTTError(f"Deepgram transcription failed: {detail}") from exc
-    words = [{
-        "word": word.get("punctuated_word") or word.get("word", ""),
-        "start": word.get("start", 0.0),
-        "end": word.get("end", 0.0),
-        "probability": _bounded_probability(word.get("confidence")),
-    } for word in alternative.get("words") or []]
+    words = []
+    for word in alternative.get("words") or []:
+        raw_word = word.get("punctuated_word") or word.get("word", "")
+        clean_word = _clean_punctuation_anomalies(raw_word)
+        words.append({
+            "word": clean_word or raw_word,
+            "start": word.get("start", 0.0),
+            "end": word.get("end", 0.0),
+            "probability": _bounded_probability(word.get("confidence")),
+        })
     try:
         duration = max(0.0, float(payload.get("metadata", {}).get("duration") or 0.0))
     except (TypeError, ValueError):
         duration = 0.0
     if words:
         duration = max(float(words[-1].get("end") or 0.0), duration or 0.0)
+    raw_text = alternative.get("transcript") or ""
     return {
-        "text": alternative.get("transcript") or "",
+        "text": _clean_punctuation_anomalies(raw_text),
         "words": words,
         "segments": [{"start": 0.0, "end": duration or 0.0}],
         "provider_confidence": _bounded_probability(alternative.get("confidence")),
