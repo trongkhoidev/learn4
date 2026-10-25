@@ -1,5 +1,6 @@
 """HTTP input and audio preparation shared by Speaking Practice and Mock."""
 
+import shutil
 import tempfile
 import uuid
 from pathlib import Path
@@ -77,7 +78,7 @@ async def prepare_audio(
             job_dir = Path(settings.storage_dir) / "speaking-jobs"
             job_dir.mkdir(parents=True, exist_ok=True)
             persistent = job_dir / f"{uuid.uuid4()}.webm"
-            Path(encoded.name).replace(persistent)
+            shutil.move(str(encoded.name), str(persistent))
             prepared = True
             return str(persistent), audio_url
         prepared = True
