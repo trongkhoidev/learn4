@@ -1,5 +1,5 @@
 export const config = {
-  maxDuration: 60,
+  runtime: 'edge',
 };
 
 export default async function handler(req) {
@@ -33,7 +33,7 @@ export default async function handler(req) {
       const options = {
         method: req.method,
         headers: headers,
-        signal: AbortSignal.timeout(45000),
+        signal: AbortSignal.timeout(12000),
       };
 
       if (req.method !== "GET" && req.method !== "HEAD") {
@@ -45,7 +45,6 @@ export default async function handler(req) {
       if (response.ok || response.status < 500) {
         return response;
       }
-      // If 502/503/504, try fallback if available
       lastError = new Error(`Upstream returned HTTP ${response.status}`);
     } catch (error) {
       lastError = error;
@@ -54,7 +53,7 @@ export default async function handler(req) {
 
   return new Response(
     JSON.stringify({
-      detail: "Máy chủ đang trong quá trình khởi động (Render Free Cold Start). Vui lòng chờ 30 giây rồi tải lại trang.",
+      detail: "Máy chủ đang trong quá trình khởi động (Render Cold Start). Vui lòng chờ 30 giây rồi tải lại trang.",
       error: lastError ? lastError.message : "Backend unavailable",
     }),
     {
