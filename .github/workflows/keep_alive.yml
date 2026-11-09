@@ -1,0 +1,18 @@
+name: Keep Render Backend Alive
+
+on:
+  schedule:
+    # Run every 10 minutes to prevent Render free tier from sleeping
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Backend Health
+        run: |
+          echo "Pinging learn4.onrender.com..."
+          curl -sS --max-time 45 https://learn4.onrender.com/health || true
+          echo "Pinging lexilearn-backend.onrender.com..."
+          curl -sS --max-time 45 https://lexilearn-backend.onrender.com/health || true

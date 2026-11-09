@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: lexilearn-backend
+    name: learn4
     runtime: docker
     dockerfilePath: ./Dockerfile
     dockerContext: .
@@ -21,6 +21,8 @@ services:
         value: gemini
       - key: GEMINI_MODEL
         value: gemini-3.5-flash-lite
+      - key: GOOGLE_API_KEY
+        sync: false
       - key: STT_PROVIDER
         value: ensemble
       - key: STT_ENSEMBLE_PROVIDERS
@@ -31,7 +33,19 @@ services:
         value: fast
       - key: STT_PROFILE_VERSION
         value: multi-asr-fast-en-v2
+      - key: DEEPGRAM_API_KEY
+        sync: false
+      - key: DEEPGRAM_STT_MODEL
+        value: nova-3
+      - key: CLOUDFLARE_WORKER_URL
+        value: https://learn4-whisper-stt.candied-gambler.workers.dev
+      - key: CLOUDFLARE_WORKER_TOKEN
+        sync: false
       - key: CLOUDFLARE_STT_MODEL
         value: "@cf/openai/whisper-large-v3-turbo"
+      - key: GROQ_API_KEY
+        sync: false
       - key: SCORING_VERSION
         value: ielts-evidence-ensemble-v4
+      - key: WHISPER_PRELOAD
+        value: "false"

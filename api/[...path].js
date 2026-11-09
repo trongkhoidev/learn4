@@ -1,11 +1,11 @@
 export const config = {
-  runtime: 'edge',
+  maxDuration: 60,
 };
 
 export default async function handler(req) {
   const url = new URL(req.url);
-  const rawBackendBase = process.env.BACKEND_URL || "https://measureless-trogonoid-marisha.ngrok-free.dev";
-  const backendBase = rawBackendBase.replace(/\/+$/, "");
+  const primaryBackend = (process.env.BACKEND_URL || "https://learn4.onrender.com").replace(/\/+$/, "");
+  const fallbackBackend = "https://lexilearn-backend.onrender.com";
 
   let pathname = url.pathname;
   if (pathname.includes("[...path]")) {
@@ -13,29 +13,53 @@ export default async function handler(req) {
     if (matched) pathname = matched;
   }
 
-  const targetUrl = `${backendBase}${pathname}${url.search}`;
-  const targetHost = new URL(backendBase).host;
-
-  const headers = new Headers(req.headers);
-  headers.set("ngrok-skip-browser-warning", "true");
-  headers.set("host", targetHost);
-
-  const options = {
-    method: req.method,
-    headers: headers,
-  };
-
-  if (req.method !== "GET" && req.method !== "HEAD") {
-    options.body = req.body;
-    options.duplex = "half";
+  const query = url.search || "";
+  const candidateUrls = [
+    `${primaryBackend}${pathname}${query}`,
+  ];
+  if (fallbackBackend !== primaryBackend) {
+    candidateUrls.push(`${fallbackBackend}${pathname}${query}`);
   }
 
-  try {
-    return await fetch(targetUrl, options);
-  } catch (error) {
-    return new Response(JSON.stringify({ error: error.message, target: targetUrl }), {
-      status: 502,
+  let lastError = null;
+
+  for (const targetUrl of candidateUrls) {
+    try {
+      const targetHost = new URL(targetUrl).host;
+      const headers = new Headers(req.headers);
+      headers.set("ngrok-skip-browser-warning", "true");
+      headers.set("host", targetHost);
+
+      const options = {
+        method: req.method,
+        headers: headers,
+        signal: AbortSignal.timeout(45000),
+      };
+
+      if (req.method !== "GET" && req.method !== "HEAD") {
+        options.body = req.body;
+        options.duplex = "half";
+      }
+
+      const response = await fetch(targetUrl, options);
+      if (response.ok || response.status < 500) {
+        return response;
+      }
+      // If 502/503/504, try fallback if available
+      lastError = new Error(`Upstream returned HTTP ${response.status}`);
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  return new Response(
+    JSON.stringify({
+      detail: "Máy chủ đang trong quá trình khởi động (Render Free Cold Start). Vui lòng chờ 30 giây rồi tải lại trang.",
+      error: lastError ? lastError.message : "Backend unavailable",
+    }),
+    {
+      status: 503,
       headers: { "Content-Type": "application/json" },
-    });
-  }
+    }
+  );
 }
